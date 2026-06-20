@@ -1,0 +1,258 @@
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  height: 100%;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  overflow-y: auto;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-logo-text {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  font-family: system-ui, sans-serif;
+}
+
+.sidebar-close {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  line-height: 0;
+}
+
+.sidebar-close:hover {
+  color: var(--text);
+  background: var(--sidebar-hover);
+}
+
+.sidebar-nav {
+  list-style: none;
+  padding: 10px 8px;
+  flex-shrink: 0;
+}
+
+.sidebar-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: system-ui, sans-serif;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-nav-label {
+  flex: 1;
+}
+
+/* Layer toggle indicator dot */
+.sidebar-layer-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sidebar-border);
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.sidebar-layer-dot--on {
+  background: var(--accent);
+}
+
+/* Loading spinner */
+.sidebar-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--sidebar-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.sidebar-error {
+  font-size: 11px;
+  color: #e53e3e;
+  padding: 2px 12px 6px;
+  font-family: system-ui, sans-serif;
+}
+
+.sidebar-nav-btn:hover {
+  background: var(--sidebar-hover);
+  color: var(--accent);
+}
+
+.sidebar-nav-btn--active {
+  background: var(--sidebar-hover);
+  color: var(--accent);
+}
+
+/* Saved measurements panel */
+.sidebar-panel {
+  border-top: 1px solid var(--sidebar-border);
+  padding: 12px 8px 8px;
+}
+
+.sidebar-panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  padding: 0 12px 8px;
+  font-family: system-ui, sans-serif;
+}
+
+.sidebar-panel-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 4px 12px 8px;
+  font-family: system-ui, sans-serif;
+}
+
+.sidebar-saved-list {
+  list-style: none;
+}
+
+.sidebar-saved-item {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  margin-bottom: 2px;
+}
+
+.sidebar-saved-item--active {
+  background: var(--sidebar-hover);
+}
+
+.sidebar-saved-load {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 8px 8px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px 0 0 6px;
+}
+
+.sidebar-saved-load:hover {
+  background: var(--sidebar-hover);
+}
+
+.sidebar-saved-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+.sidebar-saved-dist {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: system-ui, sans-serif;
+}
+
+.sidebar-saved-delete {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 0 6px 6px 0;
+  line-height: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-saved-delete:hover {
+  background: #fff0f0;
+  color: #e53e3e;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 150;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .sidebar-overlay--visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    min-width: unset;
+    transform: translateX(-100%);
+    z-index: 200;
+    transition: transform 0.25s ease;
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+  }
+
+  .sidebar-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

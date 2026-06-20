@@ -1,0 +1,102 @@
+.distance-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  border-top: 1px solid #dde4ea;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 50;
+  font-family: system-ui, sans-serif;
+  min-height: 52px;
+}
+
+.distance-bar--hint {
+  color: #607d8b;
+  font-size: 13px;
+}
+
+.distance-values {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.distance-km {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a2e3d;
+}
+
+.distance-nm {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0077cc;
+}
+
+.distance-sep {
+  color: #aab8c2;
+  font-size: 14px;
+}
+
+.distance-pts {
+  font-size: 12px;
+  color: #607d8b;
+  margin-left: 2px;
+}
+
+.distance-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.distance-name-input {
+  padding: 6px 10px;
+  border: 1.5px solid #0077cc;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1a2e3d;
+  outline: none;
+  min-width: 180px;
+  font-family: system-ui, sans-serif;
+}
+
+.distance-btn {
+  padding: 6px 14px;
+  border: 1.5px solid #dde4ea;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1a2e3d;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.distance-btn:hover {
+  background: #f0f7ff;
+}
+
+.distance-btn--primary {
+  background: #0077cc;
+  border-color: #0077cc;
+  color: #ffffff;
+}
+
+.distance-btn--primary:hover {
+  background: #0068b5;
+}
+
+.distance-btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

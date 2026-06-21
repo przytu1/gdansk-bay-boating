@@ -5,10 +5,10 @@
 }
 
 :root {
-  --sidebar-width: 220px;
-  --sidebar-bg: #ffffff;
-  --sidebar-border: #dde4ea;
-  --sidebar-hover: #eef5fb;
+  --sidebar-width: 280px;
+  --sidebar-bg: #efeae8;
+  --sidebar-border: #d5ccc8;
+  --sidebar-hover: #e3dcd9;
   --accent: #0077cc;
   --text: #1a2e3d;
   --text-muted: #607d8b;

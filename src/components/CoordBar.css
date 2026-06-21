@@ -1,0 +1,92 @@
+.coord-bar-wrapper {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  font-family: system-ui, sans-serif;
+}
+
+.coord-bar {
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(6px);
+  border-top: 1px solid #dde4ea;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  cursor: pointer;
+}
+
+.coord-bar:hover {
+  background: #f0f7ff;
+}
+
+.coord-bar--hint {
+  color: #607d8b;
+  font-size: 13px;
+  cursor: default;
+}
+
+.coord-bar--hint:hover {
+  background: rgba(255, 255, 255, 0.97);
+}
+
+.coord-values {
+  flex: 1;
+  min-width: 0;
+}
+
+.coord-ddm {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.coord-ddm-val {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0077cc;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.coord-ddm-sep {
+  color: #aab8c2;
+  font-size: 14px;
+}
+
+.coord-dd {
+  font-size: 11px;
+  color: #607d8b;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.coord-copy-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border: 1.5px solid #dde4ea;
+  background: #ffffff;
+  color: #1a2e3d;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+  border-radius: 0;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.coord-copy-btn:hover {
+  background: #f0f7ff;
+  border-color: #0077cc;
+}
+
+.coord-copy-btn--done {
+  background: #0077cc;
+  border-color: #0077cc;
+  color: #ffffff;
+}

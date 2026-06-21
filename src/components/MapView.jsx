@@ -80,6 +80,55 @@ function makeMarinaIcon() {
   return ctx.getImageData(0, 0, size, size)
 }
 
+function makeLockBridgeIcon() {
+  const size = 44
+  const c = document.createElement('canvas')
+  c.width = size; c.height = size
+  const ctx = c.getContext('2d')
+
+  ctx.shadowColor = 'rgba(0,0,0,0.32)'
+  ctx.shadowBlur = 4
+  ctx.shadowOffsetY = 2
+
+  ctx.fillStyle = '#0e7490'
+  ctx.fillRect(0, 0, size, size)
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
+
+  ctx.strokeStyle = '#000000'
+  ctx.lineWidth = 2.5
+  ctx.strokeRect(1.25, 1.25, size - 2.5, size - 2.5)
+
+  ctx.fillStyle = '#ffffff'
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  // Left tower
+  ctx.fillRect(5, 18, 7, 19)
+  // Right tower
+  ctx.fillRect(32, 18, 7, 19)
+
+  // Single bridge leaf – fully raised (~70° from horizontal), hinged at right tower base
+  ctx.lineWidth = 3.5
+  ctx.beginPath()
+  ctx.moveTo(33, 36)   // hinge at base of right tower
+  ctx.lineTo(22, 8)    // top of raised leaf
+  ctx.stroke()
+
+  // Hinge pivot dot
+  ctx.beginPath()
+  ctx.arc(33, 36, 2.5, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Water line
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(4, 40); ctx.lineTo(40, 40)
+  ctx.stroke()
+
+  return ctx.getImageData(0, 0, size, size)
+}
+
 function makeFuelIcon() {
   const size = 44
   const c = document.createElement('canvas')
@@ -139,6 +188,21 @@ function buildFuelPopupHTML(props) {
   return `<div class="seamark-popup">
     <div class="seamark-popup-title">${name}</div>
     <div class="seamark-popup-type">Stacja paliw dla łodzi</div>
+    ${infoLines.length ? `<div class="seamark-popup-details">${infoLines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
+  </div>`
+}
+
+function buildCustomLockPopupHTML(props) {
+  const name = (props && props.name) ? props.name : 'Śluza / Most'
+  const subtitle = (props && props.subtitle) ? String(props.subtitle) : ''
+  const type = (props && props.type) ? String(props.type) : 'lock'
+  const typeLabel = type === 'bridge' ? 'Most zwodzony' : 'Śluza'
+  const rawInfo = (props && props.info != null) ? String(props.info) : ''
+  const infoLines = rawInfo.split('\n').filter(Boolean)
+
+  return `<div class="seamark-popup">
+    <div class="seamark-popup-title">${name}</div>
+    <div class="seamark-popup-type">${subtitle || typeLabel}</div>
     ${infoLines.length ? `<div class="seamark-popup-details">${infoLines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
   </div>`
 }
@@ -412,6 +476,8 @@ export default function MapView({
   seamarksVisible, seamarksData,
   fuelVisible, fuelData, isPlacingFuel, onPlaceFuelPoint,
   marinasVisible, marinasData, isPlacingMarina, onPlaceMarinaPoint,
+  locksVisible, locksData, isPlacingLock, onPlaceLockPoint,
+  isCoords, coordPoint, onCoordPoint,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
@@ -421,6 +487,10 @@ export default function MapView({
   const onPlaceFuelPointRef = useRef(onPlaceFuelPoint)
   const isPlacingMarinaRef = useRef(isPlacingMarina)
   const onPlaceMarinaPointRef = useRef(onPlaceMarinaPoint)
+  const isPlacingLockRef = useRef(isPlacingLock)
+  const onPlaceLockPointRef = useRef(onPlaceLockPoint)
+  const isCoordsRef = useRef(isCoords)
+  const onCoordPointRef = useRef(onCoordPoint)
 
   useEffect(() => { isMeasuringRef.current = isMeasuring }, [isMeasuring])
   useEffect(() => { onAddPointRef.current = onAddPoint }, [onAddPoint])
@@ -428,6 +498,10 @@ export default function MapView({
   useEffect(() => { onPlaceFuelPointRef.current = onPlaceFuelPoint }, [onPlaceFuelPoint])
   useEffect(() => { isPlacingMarinaRef.current = isPlacingMarina }, [isPlacingMarina])
   useEffect(() => { onPlaceMarinaPointRef.current = onPlaceMarinaPoint }, [onPlaceMarinaPoint])
+  useEffect(() => { isPlacingLockRef.current = isPlacingLock }, [isPlacingLock])
+  useEffect(() => { onPlaceLockPointRef.current = onPlaceLockPoint }, [onPlaceLockPoint])
+  useEffect(() => { isCoordsRef.current = isCoords }, [isCoords])
+  useEffect(() => { onCoordPointRef.current = onCoordPoint }, [onCoordPoint])
 
   useEffect(() => {
     if (mapRef.current) return
@@ -648,6 +722,60 @@ export default function MapView({
         map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
       })
 
+      // ── Locks & bridges ─────────────────────────────────────────
+      map.addImage('lock-icon', makeLockBridgeIcon())
+
+      map.addSource('locks', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+
+      map.addLayer({
+        id: 'lock-points',
+        type: 'symbol',
+        source: 'locks',
+        layout: {
+          visibility: 'none',
+          'icon-image': 'lock-icon',
+          'icon-size': 0.5,
+          'icon-allow-overlap': true,
+          'icon-anchor': 'center',
+        },
+      })
+
+      map.on('click', 'lock-points', e => {
+        if (isMeasuringRef.current || isPlacingLockRef.current) return
+        const feature = e.features[0]
+        new mapboxgl.Popup({ maxWidth: '320px', closeButton: false, className: 'seamark-point-popup' })
+          .setLngLat(feature.geometry.coordinates.slice())
+          .setHTML(buildCustomLockPopupHTML(feature.properties))
+          .addTo(map)
+      })
+
+      map.on('mouseenter', 'lock-points', () => {
+        map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', 'lock-points', () => {
+        map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
+      })
+
+      // ── Coord point marker ──────────────────────────────────────
+      map.addSource('coord-point', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      map.addLayer({
+        id: 'coord-marker',
+        type: 'circle',
+        source: 'coord-point',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#0077cc',
+          'circle-stroke-width': 2.5,
+          'circle-stroke-color': '#ffffff',
+        },
+      })
+
       // ── Measure layers ───────────────────────────────────────────
       map.addSource('measure-line', {
         type: 'geojson',
@@ -687,6 +815,14 @@ export default function MapView({
         onPlaceMarinaPointRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat })
         return
       }
+      if (isPlacingLockRef.current) {
+        onPlaceLockPointRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat })
+        return
+      }
+      if (isCoordsRef.current) {
+        onCoordPointRef.current([e.lngLat.lng, e.lngLat.lat])
+        return
+      }
       if (!isMeasuringRef.current) return
       const hit = map.queryRenderedFeatures(e.point, { layers: ['seamarks-points'] })
       if (hit.length > 0) return
@@ -697,11 +833,11 @@ export default function MapView({
     return () => { map.remove(); mapRef.current = null }
   }, [])
 
-  // Crosshair cursor when measuring or placing a point
+  // Crosshair cursor when measuring, placing a point, or picking coords
   useEffect(() => {
-    const active = isMeasuring || isPlacingFuel || isPlacingMarina
+    const active = isMeasuring || isPlacingFuel || isPlacingMarina || isPlacingLock || isCoords
     mapRef.current?.getCanvas().style.setProperty('cursor', active ? 'crosshair' : '')
-  }, [isMeasuring, isPlacingFuel, isPlacingMarina])
+  }, [isMeasuring, isPlacingFuel, isPlacingMarina, isPlacingLock, isCoords])
 
   // Update measure layer data
   useEffect(() => {
@@ -748,6 +884,27 @@ export default function MapView({
     const vis = marinasVisible ? 'visible' : 'none'
     if (map.getLayer('marina-points')) map.setLayoutProperty('marina-points', 'visibility', vis)
   }, [marinasVisible, marinasData])
+
+  // Coord point marker
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    map.getSource('coord-point')?.setData({
+      type: 'FeatureCollection',
+      features: isCoords && coordPoint
+        ? [{ type: 'Feature', geometry: { type: 'Point', coordinates: coordPoint } }]
+        : [],
+    })
+  }, [isCoords, coordPoint])
+
+  // Locks/bridges data + visibility
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (locksData) map.getSource('locks')?.setData(locksData)
+    const vis = locksVisible ? 'visible' : 'none'
+    if (map.getLayer('lock-points')) map.setLayoutProperty('lock-points', 'visibility', vis)
+  }, [locksVisible, locksData])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

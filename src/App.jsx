@@ -2,10 +2,12 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import Sidebar from './components/Sidebar'
 import MapView from './components/MapView'
 import DistanceBar from './components/DistanceBar'
+import CoordBar from './components/CoordBar'
 import FuelStationForm from './components/FuelStationForm'
 import { fetchSeamarks, getSeamarksCacheInfo, clearSeamarksCache } from './utils/seamarks'
-import { loadCustomFuelStations, saveCustomFuelStations, stationsToGeoJSON } from './utils/customFuel'
+import { BUILT_IN_FUEL_STATIONS, loadCustomFuelStations, saveCustomFuelStations, stationsToGeoJSON } from './utils/customFuel'
 import { BUILT_IN_MARINAS, loadUserMarinas, saveUserMarinas, marinasToGeoJSON } from './utils/customMarinas'
+import { BUILT_IN_LOCKS, loadUserLocks, saveUserLocks, locksToGeoJSON } from './utils/customLocks'
 
 const STORAGE_KEY = 'bay-nav-measurements'
 
@@ -19,17 +21,23 @@ export default function App() {
   // Tools (exclusive, interactive)
   const [activeTool, setActiveTool] = useState(null)
   const [measurePoints, setMeasurePoints] = useState([])
+  const [measureSpeeds, setMeasureSpeeds] = useState([])
+  const [measureDepartureTime, setMeasureDepartureTime] = useState('')
+  const [coordPoint, setCoordPoint] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [savedMeasurements, setSavedMeasurements] = useState(loadSaved)
 
   // Layer toggles (independent)
-  const [visibleLayers, setVisibleLayers] = useState({ seamarks: false, fuel: false, marinas: false })
+  const [visibleLayers, setVisibleLayers] = useState({ seamarks: false, fuel: false, marinas: false, locks: false })
   const [customFuelStations, setCustomFuelStations] = useState(loadCustomFuelStations)
   const [isPlacingFuel, setIsPlacingFuel] = useState(false)
   const [pendingFuelPoint, setPendingFuelPoint] = useState(null)
   const [userMarinas, setUserMarinas] = useState(loadUserMarinas)
   const [isPlacingMarina, setIsPlacingMarina] = useState(false)
   const [pendingMarinaPoint, setPendingMarinaPoint] = useState(null)
+  const [userLocks, setUserLocks] = useState(loadUserLocks)
+  const [isPlacingLock, setIsPlacingLock] = useState(false)
+  const [pendingLockPoint, setPendingLockPoint] = useState(null)
   const [seamarksData, setSeamarksData] = useState(null)
   const [seamarksLoading, setSeamarksLoading] = useState(false)
   const [seamarksError, setSeamarksError] = useState(null)
@@ -44,10 +52,13 @@ export default function App() {
     saveCustomFuelStations(customFuelStations)
   }, [customFuelStations])
 
-  const fuelData = useMemo(() => stationsToGeoJSON(customFuelStations), [customFuelStations])
+  const fuelData = useMemo(() => stationsToGeoJSON([...BUILT_IN_FUEL_STATIONS, ...customFuelStations]), [customFuelStations])
 
   useEffect(() => { saveUserMarinas(userMarinas) }, [userMarinas])
   const marinasData = useMemo(() => marinasToGeoJSON([...BUILT_IN_MARINAS, ...userMarinas]), [userMarinas])
+
+  useEffect(() => { saveUserLocks(userLocks) }, [userLocks])
+  const locksData = useMemo(() => locksToGeoJSON([...BUILT_IN_LOCKS, ...userLocks]), [userLocks])
 
   // Update cache info whenever data loads
   useEffect(() => {
@@ -136,6 +147,44 @@ export default function App() {
     setUserMarinas(prev => prev.filter(m => m.id !== id))
   }
 
+  function handleStartPlaceLock() {
+    setMenuOpen(false)
+    setIsPlacingLock(true)
+    setPendingLockPoint(null)
+    setVisibleLayers(prev => ({ ...prev, locks: true }))
+  }
+
+  function handleMapLockPoint(point) {
+    setPendingLockPoint(point)
+  }
+
+  function handleSaveLock({ name, info }) {
+    const point = pendingLockPoint
+    if (!point) return
+    const newLock = {
+      id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
+      name,
+      subtitle: '',
+      type: 'lock',
+      info: info || '',
+      lng: point.lng,
+      lat: point.lat,
+      createdAt: Date.now(),
+    }
+    setUserLocks(prev => [...prev, newLock])
+    setPendingLockPoint(null)
+    setIsPlacingLock(false)
+  }
+
+  function handleCancelLockPlace() {
+    setIsPlacingLock(false)
+    setPendingLockPoint(null)
+  }
+
+  function handleDeleteLock(id) {
+    setUserLocks(prev => prev.filter(l => l.id !== id))
+  }
+
   function handleRefreshSeamarks() {
     clearSeamarksCache()
     setSeamarksData(null)
@@ -147,10 +196,21 @@ export default function App() {
       .catch(() => { setSeamarksError('Nie udało się zaktualizować bazy. Sprawdź połączenie.'); setSeamarksLoading(false) })
   }
 
+  function handleMeasureSpeedChange(index, value) {
+    setMeasureSpeeds(prev => {
+      const next = [...prev]
+      next[index] = value
+      return next
+    })
+  }
+
   function handleToolChange(toolId) {
     const next = activeTool === toolId ? null : toolId
     setActiveTool(next)
     setMeasurePoints([])
+    setMeasureSpeeds([])
+    setMeasureDepartureTime('')
+    setCoordPoint(null)
     setEditingId(null)
   }
 
@@ -165,11 +225,17 @@ export default function App() {
   function handleSaveMeasurement(name) {
     if (editingId) {
       setSavedMeasurements(prev =>
-        prev.map(m => m.id === editingId ? { ...m, name, points: measurePoints } : m)
+        prev.map(m => m.id === editingId
+          ? { ...m, name, points: measurePoints, speeds: measureSpeeds, departureTime: measureDepartureTime }
+          : m)
       )
     } else {
-      const id = crypto.randomUUID()
-      setSavedMeasurements(prev => [...prev, { id, name, points: measurePoints, createdAt: Date.now() }])
+      const id = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)
+      setSavedMeasurements(prev => [...prev, {
+        id, name, points: measurePoints,
+        speeds: measureSpeeds, departureTime: measureDepartureTime,
+        createdAt: Date.now(),
+      }])
       setEditingId(id)
     }
   }
@@ -177,6 +243,8 @@ export default function App() {
   function handleLoadMeasurement(m) {
     setActiveTool('measure')
     setMeasurePoints(m.points)
+    setMeasureSpeeds(m.speeds || [])
+    setMeasureDepartureTime(m.departureTime || '')
     setEditingId(m.id)
     setMenuOpen(false)
   }
@@ -205,12 +273,17 @@ export default function App() {
         seamarksInfo={seamarksInfo}
         onRefreshSeamarks={handleRefreshSeamarks}
         customFuelStations={customFuelStations}
+        builtInFuelCount={BUILT_IN_FUEL_STATIONS.length}
         onStartPlaceFuel={handleStartPlaceFuel}
         onDeleteFuelStation={handleDeleteFuelStation}
         userMarinas={userMarinas}
         builtInMarinaCount={BUILT_IN_MARINAS.length}
         onStartPlaceMarina={handleStartPlaceMarina}
         onDeleteMarina={handleDeleteMarina}
+        userLocks={userLocks}
+        builtInLockCount={BUILT_IN_LOCKS.length}
+        onStartPlaceLock={handleStartPlaceLock}
+        onDeleteLock={handleDeleteLock}
         savedMeasurements={savedMeasurements}
         editingId={editingId}
         onLoadMeasurement={handleLoadMeasurement}
@@ -231,6 +304,13 @@ export default function App() {
           marinasData={marinasData}
           isPlacingMarina={isPlacingMarina}
           onPlaceMarinaPoint={handleMapMarinaPoint}
+          locksVisible={visibleLayers.locks}
+          locksData={locksData}
+          isPlacingLock={isPlacingLock}
+          onPlaceLockPoint={handleMapLockPoint}
+          isCoords={activeTool === 'coords'}
+          coordPoint={coordPoint}
+          onCoordPoint={setCoordPoint}
         />
         {isPlacingFuel && !pendingFuelPoint && (
           <div className="place-fuel-banner">
@@ -268,9 +348,34 @@ export default function App() {
             headerColor="#1e40af"
           />
         )}
+        {isPlacingLock && !pendingLockPoint && (
+          <div className="place-fuel-banner" style={{ background: '#0e7490' }}>
+            <span>Kliknij na mapie gdzie znajduje się śluza lub most zwodzony</span>
+            <button onClick={handleCancelLockPlace}>Anuluj</button>
+          </div>
+        )}
+        {pendingLockPoint && (
+          <FuelStationForm
+            point={pendingLockPoint}
+            onSave={handleSaveLock}
+            onCancel={handleCancelLockPlace}
+            formTitle="Nowa śluza / most zwodzony"
+            namePlaceholder="np. Śluza Kanał Portowy"
+            infoPlaceholder={'Otwierana na żądanie\nVHF: kanał 12\nTel: +48 ...'}
+            saveLabel="Zapisz"
+            headerColor="#0e7490"
+          />
+        )}
+        {activeTool === 'coords' && (
+          <CoordBar point={coordPoint} />
+        )}
         {activeTool === 'measure' && (
           <DistanceBar
             points={measurePoints}
+            speeds={measureSpeeds}
+            departureTime={measureDepartureTime}
+            onSpeedChange={handleMeasureSpeedChange}
+            onDepartureTimeChange={setMeasureDepartureTime}
             editingMeasurement={editingMeasurement}
             onSave={handleSaveMeasurement}
           />

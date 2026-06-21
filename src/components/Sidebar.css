@@ -79,20 +79,20 @@
 
 .sidebar-nav-label {
   flex: 1;
+  white-space: nowrap;
 }
 
-/* Layer toggle indicator dot */
-.sidebar-layer-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--sidebar-border);
+/* Layer visibility eye icon */
+.sidebar-eye-icon {
   flex-shrink: 0;
-  transition: background 0.2s;
+  line-height: 0;
+  opacity: 0.55;
+  transition: opacity 0.15s;
 }
 
-.sidebar-layer-dot--on {
-  background: var(--accent);
+.sidebar-nav-btn--active .sidebar-eye-icon,
+.sidebar-nav-btn:hover .sidebar-eye-icon {
+  opacity: 1;
 }
 
 /* Loading spinner */
@@ -344,4 +344,12 @@
 
 .settings-update-btn--navy:hover:not(:disabled) {
   background: #1e3a8a;
+}
+
+.settings-update-btn--teal {
+  background: #0e7490;
+}
+
+.settings-update-btn--teal:hover:not(:disabled) {
+  background: #0c6577;
 }

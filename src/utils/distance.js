@@ -20,3 +20,7 @@ export function totalDistanceKm(points) {
 export function kmToNm(km) {
   return km / KM_PER_NM
 }
+
+export function segmentNm(p1, p2) {
+  return haversineKm(p1, p2) / KM_PER_NM
+}

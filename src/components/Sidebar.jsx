@@ -3,8 +3,10 @@ import './Sidebar.css'
 
 const NAV_ITEMS = [
   { id: 'measure', label: 'Pomiar', Icon: RulerIcon, kind: 'tool' },
+  { id: 'coords', label: 'Koordynaty', Icon: CoordIcon, kind: 'tool' },
   { id: 'seamarks', label: 'Znaki nawigacyjne', Icon: SeamarksIcon, kind: 'layer' },
   { id: 'marinas', label: 'Mariny i przystanie', Icon: MarinaIcon, kind: 'layer' },
+  { id: 'locks', label: 'Śluzy i mosty zwodzone', Icon: LockIcon, kind: 'layer' },
   { id: 'fuel', label: 'Stacje paliw', Icon: FuelStationIcon, kind: 'layer' },
   { id: 'settings', label: 'Ustawienia', Icon: SettingsIcon, kind: 'tool' },
 ]
@@ -28,12 +30,17 @@ export default function Sidebar({
   seamarksInfo,
   onRefreshSeamarks,
   customFuelStations,
+  builtInFuelCount,
   onStartPlaceFuel,
   onDeleteFuelStation,
   userMarinas,
   builtInMarinaCount,
   onStartPlaceMarina,
   onDeleteMarina,
+  userLocks,
+  builtInLockCount,
+  onStartPlaceLock,
+  onDeleteLock,
   savedMeasurements,
   editingId,
   onLoadMeasurement,
@@ -58,7 +65,7 @@ export default function Sidebar({
         <div className="sidebar-header">
           <div className="sidebar-logo">
             <img src="/logo.svg" alt="" width="32" height="32" />
-            <span className="sidebar-logo-text">Bay Nav</span>
+            <span className="sidebar-logo-text">Navigator</span>
           </div>
           <button className="sidebar-close" onClick={onClose} aria-label="Zamknij menu">
             <CloseIcon />
@@ -75,7 +82,9 @@ export default function Sidebar({
                 <item.Icon />
                 <span className="sidebar-nav-label">{item.label}</span>
                 {item.kind === 'layer' && (
-                  <span className={`sidebar-layer-dot${visibleLayers[item.id] ? ' sidebar-layer-dot--on' : ''}`} />
+                  <span className="sidebar-eye-icon">
+                    {visibleLayers[item.id] ? <EyeIcon /> : <EyeOffIcon />}
+                  </span>
                 )}
                 {item.id === 'seamarks' && seamarksLoading && <span className="sidebar-spinner" />}
               </button>
@@ -114,9 +123,10 @@ export default function Sidebar({
 
             <div className="sidebar-panel-divider" />
             <div className="sidebar-panel-title">Stacje paliw</div>
-            {customFuelStations.length === 0 ? (
-              <p className="sidebar-panel-empty">Brak zapisanych stacji</p>
-            ) : (
+            <p className="sidebar-panel-empty" style={{ marginBottom: 4 }}>
+              Wbudowane: <strong>{builtInFuelCount}</strong>
+            </p>
+            {customFuelStations.length > 0 && (
               <ul className="sidebar-saved-list">
                 {customFuelStations.map(s => (
                   <li key={s.id} className="sidebar-saved-item">
@@ -160,6 +170,31 @@ export default function Sidebar({
             <button className="settings-update-btn settings-update-btn--navy" onClick={onStartPlaceMarina}>
               Dodaj marinę / przystań
             </button>
+
+            <div className="sidebar-panel-divider" />
+            <div className="sidebar-panel-title">Śluzy i mosty zwodzone</div>
+            <p className="sidebar-panel-empty" style={{ marginBottom: 4 }}>
+              Wbudowane: <strong>{builtInLockCount}</strong>
+            </p>
+            {userLocks.length > 0 && (
+              <ul className="sidebar-saved-list">
+                {userLocks.map(l => (
+                  <li key={l.id} className="sidebar-saved-item">
+                    <span className="sidebar-saved-name sidebar-saved-name--fuel">{l.name}</span>
+                    <button
+                      className="sidebar-saved-delete"
+                      onClick={() => onDeleteLock(l.id)}
+                      aria-label={`Usuń ${l.name}`}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button className="settings-update-btn settings-update-btn--teal" onClick={onStartPlaceLock}>
+              Dodaj śluzę / most zwodzony
+            </button>
           </div>
         )}
 
@@ -201,6 +236,24 @@ export default function Sidebar({
   )
 }
 
+function EyeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  )
+}
+
 function SeamarksIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -231,6 +284,30 @@ function MarinaIcon() {
       <line x1="5" y1="13" x2="19" y2="13" />
       <path d="M12 22 C 5 22 3 17 5 14" />
       <path d="M12 22 C 19 22 21 17 19 14" />
+    </svg>
+  )
+}
+
+function CoordIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <line x1="12" y1="2" x2="12" y2="7" />
+      <line x1="12" y1="17" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="7" y2="12" />
+      <line x1="17" y1="12" x2="22" y2="12" />
+    </svg>
+  )
+}
+
+function LockIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="4" height="14" rx="0.5" />
+      <rect x="17" y="5" width="4" height="14" rx="0.5" />
+      <path d="M7 9 L12 12 L7 15" />
+      <path d="M17 9 L12 12 L17 15" />
+      <line x1="2" y1="21" x2="22" y2="21" />
     </svg>
   )
 }

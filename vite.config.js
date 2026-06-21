@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       devOptions: { enabled: true },
       manifest: {
-        name: 'Nawigacja Zatoka Gdańska',
-        short_name: 'Bay Nav',
+        name: 'Navigator',
+        short_name: 'Navigator',
         description: 'Aplikacja nawigacyjna do żeglarstwa i motorowodniactwa w Zatoce Gdańskiej',
         theme_color: '#0d2b3e',
         background_color: '#0d2b3e',

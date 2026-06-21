@@ -337,3 +337,11 @@
   font-weight: 500;
   color: var(--text);
 }
+
+.settings-update-btn--navy {
+  background: #1e40af;
+}
+
+.settings-update-btn--navy:hover:not(:disabled) {
+  background: #1e3a8a;
+}

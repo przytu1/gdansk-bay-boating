@@ -8,6 +8,78 @@ const GDANSK_BAY_CENTER = [18.709516900145584, 54.428935648705995]
 
 const SEAMARK_LAYERS = ['seamarks-points', 'seamarks-areas-fill', 'seamarks-areas-line']
 
+function makeMarinaIcon() {
+  const size = 44
+  const c = document.createElement('canvas')
+  c.width = size
+  c.height = size
+  const ctx = c.getContext('2d')
+
+  ctx.shadowColor = 'rgba(0,0,0,0.32)'
+  ctx.shadowBlur = 4
+  ctx.shadowOffsetY = 2
+
+  // Navy blue background
+  ctx.fillStyle = '#1e40af'
+  ctx.fillRect(0, 0, size, size)
+  ctx.shadowBlur = 0
+  ctx.shadowOffsetY = 0
+
+  // Black border
+  ctx.strokeStyle = '#000000'
+  ctx.lineWidth = 2.5
+  ctx.strokeRect(1.25, 1.25, size - 2.5, size - 2.5)
+
+  // Anchor symbol (white)
+  ctx.strokeStyle = '#ffffff'
+  ctx.fillStyle = '#ffffff'
+  ctx.lineWidth = 3.5
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  const cx = 22
+
+  // Ring at top
+  ctx.beginPath()
+  ctx.arc(cx, 10, 5, 0, Math.PI * 2)
+  ctx.stroke()
+
+  // Shaft
+  ctx.beginPath()
+  ctx.moveTo(cx, 10)
+  ctx.lineTo(cx, 37)
+  ctx.stroke()
+
+  // Crossbar (stock)
+  ctx.beginPath()
+  ctx.moveTo(cx - 10, 20)
+  ctx.lineTo(cx + 10, 20)
+  ctx.stroke()
+
+  // Left arm
+  ctx.beginPath()
+  ctx.moveTo(cx, 37)
+  ctx.bezierCurveTo(cx - 4, 37, cx - 12, 34, cx - 12, 27)
+  ctx.stroke()
+
+  // Right arm
+  ctx.beginPath()
+  ctx.moveTo(cx, 37)
+  ctx.bezierCurveTo(cx + 4, 37, cx + 12, 34, cx + 12, 27)
+  ctx.stroke()
+
+  // Arm tips
+  ctx.beginPath()
+  ctx.arc(cx - 12, 27, 3.5, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.beginPath()
+  ctx.arc(cx + 12, 27, 3.5, 0, Math.PI * 2)
+  ctx.fill()
+
+  return ctx.getImageData(0, 0, size, size)
+}
+
 function makeFuelIcon() {
   const size = 44
   const c = document.createElement('canvas')
@@ -67,6 +139,18 @@ function buildFuelPopupHTML(props) {
   return `<div class="seamark-popup">
     <div class="seamark-popup-title">${name}</div>
     <div class="seamark-popup-type">Stacja paliw dla łodzi</div>
+    ${infoLines.length ? `<div class="seamark-popup-details">${infoLines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
+  </div>`
+}
+
+function buildMarinaPopupHTML(props) {
+  const name = (props && props.name) ? props.name : 'Marina / Przystań'
+  const rawInfo = (props && props.info != null) ? String(props.info) : ''
+  const infoLines = rawInfo.split('\n').filter(Boolean)
+
+  return `<div class="seamark-popup">
+    <div class="seamark-popup-title">${name}</div>
+    <div class="seamark-popup-type">Marina / Przystań</div>
     ${infoLines.length ? `<div class="seamark-popup-details">${infoLines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
   </div>`
 }
@@ -323,18 +407,27 @@ function buildAreaPopupHTML(props) {
   </div>`
 }
 
-export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamarksVisible, seamarksData, fuelVisible, fuelData, isPlacingFuel, onPlaceFuelPoint }) {
+export default function MapView({
+  isMeasuring, measurePoints, onAddPoint,
+  seamarksVisible, seamarksData,
+  fuelVisible, fuelData, isPlacingFuel, onPlaceFuelPoint,
+  marinasVisible, marinasData, isPlacingMarina, onPlaceMarinaPoint,
+}) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const isMeasuringRef = useRef(isMeasuring)
   const onAddPointRef = useRef(onAddPoint)
   const isPlacingFuelRef = useRef(isPlacingFuel)
   const onPlaceFuelPointRef = useRef(onPlaceFuelPoint)
+  const isPlacingMarinaRef = useRef(isPlacingMarina)
+  const onPlaceMarinaPointRef = useRef(onPlaceMarinaPoint)
 
   useEffect(() => { isMeasuringRef.current = isMeasuring }, [isMeasuring])
   useEffect(() => { onAddPointRef.current = onAddPoint }, [onAddPoint])
   useEffect(() => { isPlacingFuelRef.current = isPlacingFuel }, [isPlacingFuel])
   useEffect(() => { onPlaceFuelPointRef.current = onPlaceFuelPoint }, [onPlaceFuelPoint])
+  useEffect(() => { isPlacingMarinaRef.current = isPlacingMarina }, [isPlacingMarina])
+  useEffect(() => { onPlaceMarinaPointRef.current = onPlaceMarinaPoint }, [onPlaceMarinaPoint])
 
   useEffect(() => {
     if (mapRef.current) return
@@ -518,6 +611,43 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
         map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
       })
 
+      // ── Marinas ──────────────────────────────────────────────────
+      map.addImage('marina-icon', makeMarinaIcon())
+
+      map.addSource('marinas', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+
+      map.addLayer({
+        id: 'marina-points',
+        type: 'symbol',
+        source: 'marinas',
+        layout: {
+          visibility: 'none',
+          'icon-image': 'marina-icon',
+          'icon-size': 0.5,
+          'icon-allow-overlap': true,
+          'icon-anchor': 'center',
+        },
+      })
+
+      map.on('click', 'marina-points', e => {
+        if (isMeasuringRef.current || isPlacingFuelRef.current || isPlacingMarinaRef.current) return
+        const feature = e.features[0]
+        new mapboxgl.Popup({ maxWidth: '320px', closeButton: false, className: 'seamark-point-popup' })
+          .setLngLat(feature.geometry.coordinates.slice())
+          .setHTML(buildMarinaPopupHTML(feature.properties))
+          .addTo(map)
+      })
+
+      map.on('mouseenter', 'marina-points', () => {
+        map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', 'marina-points', () => {
+        map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
+      })
+
       // ── Measure layers ───────────────────────────────────────────
       map.addSource('measure-line', {
         type: 'geojson',
@@ -547,10 +677,14 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
       })
     })
 
-    // General click — fuel placement or measure points
+    // General click — placement modes or measure points
     map.on('click', e => {
       if (isPlacingFuelRef.current) {
         onPlaceFuelPointRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat })
+        return
+      }
+      if (isPlacingMarinaRef.current) {
+        onPlaceMarinaPointRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat })
         return
       }
       if (!isMeasuringRef.current) return
@@ -563,10 +697,11 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
     return () => { map.remove(); mapRef.current = null }
   }, [])
 
-  // Crosshair cursor when measuring or placing fuel
+  // Crosshair cursor when measuring or placing a point
   useEffect(() => {
-    mapRef.current?.getCanvas().style.setProperty('cursor', (isMeasuring || isPlacingFuel) ? 'crosshair' : '')
-  }, [isMeasuring, isPlacingFuel])
+    const active = isMeasuring || isPlacingFuel || isPlacingMarina
+    mapRef.current?.getCanvas().style.setProperty('cursor', active ? 'crosshair' : '')
+  }, [isMeasuring, isPlacingFuel, isPlacingMarina])
 
   // Update measure layer data
   useEffect(() => {
@@ -604,6 +739,15 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
     const vis = fuelVisible ? 'visible' : 'none'
     if (map.getLayer('fuel-points')) map.setLayoutProperty('fuel-points', 'visibility', vis)
   }, [fuelVisible, fuelData])
+
+  // Marinas data + visibility
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    map.getSource('marinas')?.setData(marinasData)
+    const vis = marinasVisible ? 'visible' : 'none'
+    if (map.getLayer('marina-points')) map.setLayoutProperty('marina-points', 'visibility', vis)
+  }, [marinasVisible, marinasData])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

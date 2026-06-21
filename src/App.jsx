@@ -5,6 +5,7 @@ import DistanceBar from './components/DistanceBar'
 import FuelStationForm from './components/FuelStationForm'
 import { fetchSeamarks, getSeamarksCacheInfo, clearSeamarksCache } from './utils/seamarks'
 import { loadCustomFuelStations, saveCustomFuelStations, stationsToGeoJSON } from './utils/customFuel'
+import { BUILT_IN_MARINAS, loadUserMarinas, saveUserMarinas, marinasToGeoJSON } from './utils/customMarinas'
 
 const STORAGE_KEY = 'bay-nav-measurements'
 
@@ -22,10 +23,13 @@ export default function App() {
   const [savedMeasurements, setSavedMeasurements] = useState(loadSaved)
 
   // Layer toggles (independent)
-  const [visibleLayers, setVisibleLayers] = useState({ seamarks: false, fuel: false })
+  const [visibleLayers, setVisibleLayers] = useState({ seamarks: false, fuel: false, marinas: false })
   const [customFuelStations, setCustomFuelStations] = useState(loadCustomFuelStations)
   const [isPlacingFuel, setIsPlacingFuel] = useState(false)
   const [pendingFuelPoint, setPendingFuelPoint] = useState(null)
+  const [userMarinas, setUserMarinas] = useState(loadUserMarinas)
+  const [isPlacingMarina, setIsPlacingMarina] = useState(false)
+  const [pendingMarinaPoint, setPendingMarinaPoint] = useState(null)
   const [seamarksData, setSeamarksData] = useState(null)
   const [seamarksLoading, setSeamarksLoading] = useState(false)
   const [seamarksError, setSeamarksError] = useState(null)
@@ -41,6 +45,9 @@ export default function App() {
   }, [customFuelStations])
 
   const fuelData = useMemo(() => stationsToGeoJSON(customFuelStations), [customFuelStations])
+
+  useEffect(() => { saveUserMarinas(userMarinas) }, [userMarinas])
+  const marinasData = useMemo(() => marinasToGeoJSON([...BUILT_IN_MARINAS, ...userMarinas]), [userMarinas])
 
   // Update cache info whenever data loads
   useEffect(() => {
@@ -91,6 +98,42 @@ export default function App() {
 
   function handleDeleteFuelStation(id) {
     setCustomFuelStations(prev => prev.filter(s => s.id !== id))
+  }
+
+  function handleStartPlaceMarina() {
+    setMenuOpen(false)
+    setIsPlacingMarina(true)
+    setPendingMarinaPoint(null)
+    setVisibleLayers(prev => ({ ...prev, marinas: true }))
+  }
+
+  function handleMapMarinaPoint(point) {
+    setPendingMarinaPoint(point)
+  }
+
+  function handleSaveMarina({ name, info }) {
+    const point = pendingMarinaPoint
+    if (!point) return
+    const newMarina = {
+      id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
+      name,
+      info: info || '',
+      lng: point.lng,
+      lat: point.lat,
+      createdAt: Date.now(),
+    }
+    setUserMarinas(prev => [...prev, newMarina])
+    setPendingMarinaPoint(null)
+    setIsPlacingMarina(false)
+  }
+
+  function handleCancelMarinaPlace() {
+    setIsPlacingMarina(false)
+    setPendingMarinaPoint(null)
+  }
+
+  function handleDeleteMarina(id) {
+    setUserMarinas(prev => prev.filter(m => m.id !== id))
   }
 
   function handleRefreshSeamarks() {
@@ -164,6 +207,10 @@ export default function App() {
         customFuelStations={customFuelStations}
         onStartPlaceFuel={handleStartPlaceFuel}
         onDeleteFuelStation={handleDeleteFuelStation}
+        userMarinas={userMarinas}
+        builtInMarinaCount={BUILT_IN_MARINAS.length}
+        onStartPlaceMarina={handleStartPlaceMarina}
+        onDeleteMarina={handleDeleteMarina}
         savedMeasurements={savedMeasurements}
         editingId={editingId}
         onLoadMeasurement={handleLoadMeasurement}
@@ -180,6 +227,10 @@ export default function App() {
           fuelData={fuelData}
           isPlacingFuel={isPlacingFuel}
           onPlaceFuelPoint={handleMapFuelPoint}
+          marinasVisible={visibleLayers.marinas}
+          marinasData={marinasData}
+          isPlacingMarina={isPlacingMarina}
+          onPlaceMarinaPoint={handleMapMarinaPoint}
         />
         {isPlacingFuel && !pendingFuelPoint && (
           <div className="place-fuel-banner">
@@ -192,6 +243,29 @@ export default function App() {
             point={pendingFuelPoint}
             onSave={handleSaveFuelStation}
             onCancel={handleCancelFuelPlace}
+            formTitle="Nowa stacja paliw"
+            namePlaceholder="np. Marina Gdynia – Lotos"
+            infoPlaceholder={'Olej napędowy, benzyna\nGodziny: maj–wrz 8:00–20:00\nTel: +48 519 075 699'}
+            saveLabel="Zapisz stację"
+            headerColor="#15803d"
+          />
+        )}
+        {isPlacingMarina && !pendingMarinaPoint && (
+          <div className="place-fuel-banner" style={{ background: '#1e40af' }}>
+            <span>Kliknij na mapie gdzie znajduje się marina lub przystań</span>
+            <button onClick={handleCancelMarinaPlace}>Anuluj</button>
+          </div>
+        )}
+        {pendingMarinaPoint && (
+          <FuelStationForm
+            point={pendingMarinaPoint}
+            onSave={handleSaveMarina}
+            onCancel={handleCancelMarinaPlace}
+            formTitle="Nowa marina / przystań"
+            namePlaceholder="np. Przystań Sobieszewo"
+            infoPlaceholder={'Głębokość: 2.5 m\nMiejsca: 30 jachtów\nMedia: prąd, woda\nTel: +48 ...'}
+            saveLabel="Zapisz marinę"
+            headerColor="#1e40af"
           />
         )}
         {activeTool === 'measure' && (

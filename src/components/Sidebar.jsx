@@ -4,6 +4,7 @@ import './Sidebar.css'
 const NAV_ITEMS = [
   { id: 'measure', label: 'Pomiar', Icon: RulerIcon, kind: 'tool' },
   { id: 'seamarks', label: 'Znaki nawigacyjne', Icon: SeamarksIcon, kind: 'layer' },
+  { id: 'marinas', label: 'Mariny i przystanie', Icon: MarinaIcon, kind: 'layer' },
   { id: 'fuel', label: 'Stacje paliw', Icon: FuelStationIcon, kind: 'layer' },
   { id: 'settings', label: 'Ustawienia', Icon: SettingsIcon, kind: 'tool' },
 ]
@@ -29,6 +30,10 @@ export default function Sidebar({
   customFuelStations,
   onStartPlaceFuel,
   onDeleteFuelStation,
+  userMarinas,
+  builtInMarinaCount,
+  onStartPlaceMarina,
+  onDeleteMarina,
   savedMeasurements,
   editingId,
   onLoadMeasurement,
@@ -130,6 +135,31 @@ export default function Sidebar({
             <button className="settings-update-btn settings-update-btn--green" onClick={onStartPlaceFuel}>
               Dodaj stację paliw
             </button>
+
+            <div className="sidebar-panel-divider" />
+            <div className="sidebar-panel-title">Mariny i przystanie</div>
+            <p className="sidebar-panel-empty" style={{ marginBottom: 4 }}>
+              Wbudowane: <strong>{builtInMarinaCount}</strong>
+            </p>
+            {userMarinas.length > 0 && (
+              <ul className="sidebar-saved-list">
+                {userMarinas.map(m => (
+                  <li key={m.id} className="sidebar-saved-item">
+                    <span className="sidebar-saved-name sidebar-saved-name--fuel">{m.name}</span>
+                    <button
+                      className="sidebar-saved-delete"
+                      onClick={() => onDeleteMarina(m.id)}
+                      aria-label={`Usuń ${m.name}`}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button className="settings-update-btn settings-update-btn--navy" onClick={onStartPlaceMarina}>
+              Dodaj marinę / przystań
+            </button>
           </div>
         )}
 
@@ -189,6 +219,18 @@ function RulerIcon() {
       <path d="m11.5 9.5 2-2" />
       <path d="m8.5 6.5 2-2" />
       <path d="m17.5 15.5 2-2" />
+    </svg>
+  )
+}
+
+function MarinaIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="5" r="3" />
+      <line x1="12" y1="8" x2="12" y2="22" />
+      <line x1="5" y1="13" x2="19" y2="13" />
+      <path d="M12 22 C 5 22 3 17 5 14" />
+      <path d="M12 22 C 19 22 21 17 19 14" />
     </svg>
   )
 }

@@ -70,6 +70,45 @@ const AREA_INFO = {
     ],
     source: 'Rozporządzenie VTS Zatoka Gdańska nr 11 (2023)',
   },
+  separation_boundary: {
+    label: 'Granica strefy rozdzielenia ruchu',
+    color: '#2b6cb0',
+    badge: 'TSS — granica zewnętrzna',
+    summary: 'Zewnętrzna granica zatwierdzonego przez IMO Systemu Rozdzielenia Ruchu (TSS). Linia oznacza krawędź toru ruchu jednostek handlowych na Zatoce Gdańskiej.',
+    rules: [
+      'Nie przekraczaj granicy, jeśli nie zamierzasz korzystać z toru TSS',
+      'Wchodź do toru pod kątem prostym, trzymając się prawej burty',
+      'Zachowaj bezpieczną odległość od statków handlowych',
+      'Nasłuch na VHF kanał 16 — VTS Gdańsk',
+    ],
+    source: 'VTS Zatoka Gdańska · Urząd Morski w Gdyni',
+  },
+  anchorage: {
+    label: 'Kotwicowisko',
+    color: '#2b4e8a',
+    badge: 'Obszar kotwiczenia',
+    summary: 'Wyznaczony obszar bezpiecznego kotwiczenia. Sprawdź aktualne ograniczenia głębokości i zasięg obszaru VTS przed zrzuceniem kotwicy.',
+    rules: [
+      'Dobierz długość łańcucha kotwicznego odpowiednio do głębokości (min. 5× głębokość)',
+      'Prowadź ciągły nasłuch na VHF kanał 16',
+      'Nie blokuj torów podejściowych — sprawdź granice obszaru na mapie',
+      'Zgłoś przybycie do VTS Zatoka Gdańska, jeśli wymagane',
+    ],
+    source: 'Urząd Morski w Gdyni',
+  },
+  dumping_ground: {
+    label: 'Wysypisko odpadów morskich',
+    color: '#4a5568',
+    badge: 'Obszar zrzutu',
+    summary: 'Wyznaczony historyczny obszar zrzutu materiałów dennych. Dno może zawierać amunicję, substancje chemiczne lub inne odpady zdeponowane w przeszłości.',
+    rules: [
+      'Zakaz kotwiczenia — ryzyko zahaczenia o materiały denne',
+      'Zakaz połowów włokami i narzędziami dennymi',
+      'Nie używać sprzętu nurkowego bez zezwolenia',
+      'Zgłaszać znalezione przedmioty do Urzędu Morskiego',
+    ],
+    source: 'Urząd Morski w Gdyni · BHMW',
+  },
 }
 
 const RESTRICTED_CATEGORIES = {

@@ -22,6 +22,7 @@ const SEAMARK_TYPES_PL = {
   separation_zone: 'Strefa rozdzielenia ruchu',
   traffic_separation_scheme: 'System rozdzielenia ruchu',
   traffic_separation_lane: 'Tor rozdzielenia ruchu',
+  separation_boundary: 'Granica strefy rozdzielenia ruchu',
   inshore_traffic_zone: 'Przybrzeżna strefa ruchu',
   anchorage: 'Kotwicowisko',
   anchor_berth: 'Miejsce kotwiczenia',

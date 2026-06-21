@@ -20,27 +20,23 @@ function makeFuelIcon() {
   ctx.shadowBlur = 4
   ctx.shadowOffsetY = 2
 
-  // Background circle
-  ctx.beginPath()
-  ctx.arc(22, 22, 19, 0, Math.PI * 2)
-  ctx.fillStyle = '#c05621'
-  ctx.fill()
+  // Green square background
+  ctx.fillStyle = '#15803d'
+  ctx.fillRect(0, 0, size, size)
   ctx.shadowBlur = 0
   ctx.shadowOffsetY = 0
 
-  // White ring
-  ctx.beginPath()
-  ctx.arc(22, 22, 19, 0, Math.PI * 2)
+  // White border
   ctx.strokeStyle = '#ffffff'
-  ctx.lineWidth = 2
-  ctx.stroke()
+  ctx.lineWidth = 2.5
+  ctx.strokeRect(1.25, 1.25, size - 2.5, size - 2.5)
 
   // Pump body (white rectangle)
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(9, 9, 13, 23)
 
-  // Display window (darker cutout)
-  ctx.fillStyle = '#92400e'
+  // Display window (darker green cutout)
+  ctx.fillStyle = '#14532d'
   ctx.fillRect(10.5, 10.5, 10, 6.5)
 
   // Nozzle arm
@@ -49,10 +45,10 @@ function makeFuelIcon() {
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   ctx.beginPath()
-  ctx.moveTo(22, 15)    // exits pump body
-  ctx.lineTo(29, 15)    // horizontal right
-  ctx.lineTo(29, 23)    // vertical down
-  ctx.lineTo(27, 25)    // nozzle tip
+  ctx.moveTo(22, 15)
+  ctx.lineTo(29, 15)
+  ctx.lineTo(29, 23)
+  ctx.lineTo(27, 25)
   ctx.stroke()
 
   // Base bar
@@ -513,7 +509,7 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
         layout: {
           visibility: 'none',
           'icon-image': 'fuel-icon',
-          'icon-size': 1,
+          'icon-size': 0.5,
           'icon-allow-overlap': true,
           'icon-anchor': 'center',
         },

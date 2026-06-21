@@ -1,15 +1,18 @@
-const CACHE_KEY = 'bay-nav-fuel-v1'
+const CACHE_KEY = 'bay-nav-fuel-v2'
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000
 
 const BBOX = '53.8,18.3,54.9,19.95'
 
 const OVERPASS_QUERY = `[out:json][timeout:30];
 (
-  node["amenity"="fuel"]["motorboat"="yes"](${BBOX});
-  node["amenity"="fuel"]["boat"="yes"](${BBOX});
+  node["amenity"="fuel"]["motorboat"](${BBOX});
+  node["amenity"="fuel"]["boat"](${BBOX});
+  node["amenity"="fuel"]["ship"](${BBOX});
   node["seamark:type"="fuel_station"](${BBOX});
-  way["amenity"="fuel"]["motorboat"="yes"](${BBOX});
-  way["amenity"="fuel"]["boat"="yes"](${BBOX});
+  node["waterway"="fuel"](${BBOX});
+  way["amenity"="fuel"]["motorboat"](${BBOX});
+  way["amenity"="fuel"]["boat"](${BBOX});
+  way["seamark:type"="fuel_station"](${BBOX});
 );
 out center;`
 

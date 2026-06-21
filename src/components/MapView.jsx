@@ -59,7 +59,8 @@ function makeFuelIcon() {
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(8, 31, 15, 3)
 
-  return c
+  // Return ImageData — explicitly supported by Mapbox addImage on all platforms
+  return ctx.getImageData(0, 0, size, size)
 }
 
 function buildFuelPopupHTML(props) {
@@ -584,46 +585,37 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    const update = () => {
-      map.getSource('measure-line')?.setData({
+    map.getSource('measure-line')?.setData({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: measurePoints },
+    })
+    map.getSource('measure-points')?.setData({
+      type: 'FeatureCollection',
+      features: measurePoints.map(coords => ({
         type: 'Feature',
-        geometry: { type: 'LineString', coordinates: measurePoints },
-      })
-      map.getSource('measure-points')?.setData({
-        type: 'FeatureCollection',
-        features: measurePoints.map(coords => ({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: coords },
-        })),
-      })
-    }
-    map.isStyleLoaded() ? update() : map.once('load', update)
+        geometry: { type: 'Point', coordinates: coords },
+      })),
+    })
   }, [measurePoints])
 
   // Seamarks data + visibility
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    const update = () => {
-      if (seamarksData) map.getSource('seamarks')?.setData(seamarksData)
-      const vis = seamarksVisible && seamarksData ? 'visible' : 'none'
-      SEAMARK_LAYERS.forEach(id => {
-        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis)
-      })
-    }
-    map.isStyleLoaded() ? update() : map.once('load', update)
+    if (seamarksData) map.getSource('seamarks')?.setData(seamarksData)
+    const vis = seamarksVisible && seamarksData ? 'visible' : 'none'
+    SEAMARK_LAYERS.forEach(id => {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis)
+    })
   }, [seamarksVisible, seamarksData])
 
   // Fuel data + visibility
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    const update = () => {
-      if (fuelData) map.getSource('fuel')?.setData(fuelData)
-      const vis = fuelVisible && fuelData ? 'visible' : 'none'
-      if (map.getLayer('fuel-points')) map.setLayoutProperty('fuel-points', 'visibility', vis)
-    }
-    map.isStyleLoaded() ? update() : map.once('load', update)
+    if (fuelData) map.getSource('fuel')?.setData(fuelData)
+    const vis = fuelVisible && fuelData ? 'visible' : 'none'
+    if (map.getLayer('fuel-points')) map.setLayoutProperty('fuel-points', 'visibility', vis)
   }, [fuelVisible, fuelData])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />

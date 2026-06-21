@@ -218,6 +218,65 @@
   color: #e53e3e;
 }
 
+/* Settings panel */
+.settings-db-info {
+  padding: 4px 12px 10px;
+}
+
+.settings-db-row {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
+.settings-db-label {
+  font-size: 10px;
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.settings-db-value {
+  font-size: 13px;
+  font-family: system-ui, sans-serif;
+  font-weight: 500;
+  color: var(--text);
+  margin-top: 2px;
+}
+
+.settings-update-btn {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 0 12px 14px;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: system-ui, sans-serif;
+  cursor: pointer;
+  text-align: center;
+  line-height: 1.35;
+  transition: background 0.15s;
+}
+
+.settings-update-btn:hover:not(:disabled) {
+  background: #0068b5;
+}
+
+.settings-update-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sidebar-error--panel {
+  margin: 0 12px 8px;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
   .sidebar-overlay {

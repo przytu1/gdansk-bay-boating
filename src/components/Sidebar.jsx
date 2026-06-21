@@ -2,11 +2,18 @@ import { totalDistanceKm } from '../utils/distance'
 import './Sidebar.css'
 
 const NAV_ITEMS = [
-  { id: 'measure', label: 'Measure', Icon: RulerIcon, kind: 'tool' },
-  { id: 'seamarks', label: 'Seamarks', Icon: SeamarksIcon, kind: 'layer' },
-  { id: 'waypoints', label: 'Waypoints', Icon: AnchorIcon, kind: 'tool' },
-  { id: 'settings', label: 'Settings', Icon: SettingsIcon, kind: 'tool' },
+  { id: 'measure', label: 'Pomiar', Icon: RulerIcon, kind: 'tool' },
+  { id: 'seamarks', label: 'Znaki nawigacyjne', Icon: SeamarksIcon, kind: 'layer' },
+  { id: 'waypoints', label: 'Punkty trasy', Icon: AnchorIcon, kind: 'tool' },
+  { id: 'settings', label: 'Ustawienia', Icon: SettingsIcon, kind: 'tool' },
 ]
+
+function formatCacheDate(ts) {
+  return new Date(ts).toLocaleString('pl-PL', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
 
 export default function Sidebar({
   isOpen,
@@ -17,6 +24,8 @@ export default function Sidebar({
   onLayerToggle,
   seamarksLoading,
   seamarksError,
+  seamarksInfo,
+  onRefreshSeamarks,
   savedMeasurements,
   editingId,
   onLoadMeasurement,
@@ -43,7 +52,7 @@ export default function Sidebar({
             <img src="/logo.svg" alt="" width="32" height="32" />
             <span className="sidebar-logo-text">Bay Nav</span>
           </div>
-          <button className="sidebar-close" onClick={onClose} aria-label="Close menu">
+          <button className="sidebar-close" onClick={onClose} aria-label="Zamknij menu">
             <CloseIcon />
           </button>
         </div>
@@ -71,11 +80,39 @@ export default function Sidebar({
           ))}
         </ul>
 
+        {activeTool === 'settings' && (
+          <div className="sidebar-panel">
+            <div className="sidebar-panel-title">Baza danych znaków</div>
+            <div className="settings-db-info">
+              <div className="settings-db-row">
+                <span className="settings-db-label">Ostatnia aktualizacja</span>
+                <span className="settings-db-value">
+                  {seamarksInfo ? formatCacheDate(seamarksInfo.timestamp) : '—'}
+                </span>
+              </div>
+              <div className="settings-db-row">
+                <span className="settings-db-label">Załadowane znaki</span>
+                <span className="settings-db-value">
+                  {seamarksInfo ? seamarksInfo.count.toLocaleString('pl-PL') : '—'}
+                </span>
+              </div>
+            </div>
+            {seamarksError && <p className="sidebar-error sidebar-error--panel">{seamarksError}</p>}
+            <button
+              className="settings-update-btn"
+              onClick={onRefreshSeamarks}
+              disabled={seamarksLoading}
+            >
+              {seamarksLoading ? 'Aktualizowanie…' : 'Zaktualizuj bazę punktów nawigacyjnych'}
+            </button>
+          </div>
+        )}
+
         {activeTool === 'measure' && (
           <div className="sidebar-panel">
-            <div className="sidebar-panel-title">Saved measurements</div>
+            <div className="sidebar-panel-title">Zapisane pomiary</div>
             {savedMeasurements.length === 0 ? (
-              <p className="sidebar-panel-empty">No saved measurements yet</p>
+              <p className="sidebar-panel-empty">Brak zapisanych pomiarów</p>
             ) : (
               <ul className="sidebar-saved-list">
                 {savedMeasurements.map(m => (
@@ -94,7 +131,7 @@ export default function Sidebar({
                     <button
                       className="sidebar-saved-delete"
                       onClick={() => onDeleteMeasurement(m.id)}
-                      aria-label={`Delete ${m.name}`}
+                      aria-label={`Usuń ${m.name}`}
                     >
                       <TrashIcon />
                     </button>

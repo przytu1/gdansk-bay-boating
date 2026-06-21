@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
+import { translateType, translateColour, translateCardinal, translateLateral } from '../utils/translations'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
@@ -7,56 +8,180 @@ const GDANSK_BAY_CENTER = [18.709516900145584, 54.428935648705995]
 
 const SEAMARK_LAYERS = ['seamarks-points', 'seamarks-areas-fill', 'seamarks-areas-line']
 
-const TYPE_LABELS = {
-  buoy_lateral: 'Lateral Buoy',
-  buoy_cardinal: 'Cardinal Buoy',
-  buoy_isolated_danger: 'Isolated Danger Buoy',
-  buoy_safe_water: 'Safe Water Buoy',
-  buoy_special_purpose: 'Special Purpose Buoy',
-  light_major: 'Major Light',
-  light_minor: 'Minor Light',
-  lighthouse: 'Lighthouse',
-  beacon_lateral: 'Lateral Beacon',
-  beacon_cardinal: 'Cardinal Beacon',
-  landmark: 'Landmark',
-  restricted_area: 'Restricted Area',
-  precautionary_area: 'Precautionary Area',
-  separation_zone: 'Traffic Separation Zone',
-  wreck: 'Wreck',
-  rock: 'Rock / Shoal',
-  obstruction: 'Obstruction',
-}
-
-function formatType(type) {
-  return TYPE_LABELS[type] || (type || 'Navigation Mark').replace(/_/g, ' ')
-}
-
 function buildPopupHTML(props) {
   const name = props.name || props['seamark:name'] || ''
-  const type = formatType(props['seamark:type'])
+  const type = translateType(props['seamark:type'])
   const lines = []
 
   const cardinal = props['seamark:buoy_cardinal:category']
-  if (cardinal) lines.push(`Direction: <strong>${cardinal}</strong>`)
+  if (cardinal) lines.push(`Kierunek: <strong>${translateCardinal(cardinal)}</strong>`)
 
   const lateral = props['seamark:buoy_lateral:category']
-  if (lateral) lines.push(`Side: <strong>${lateral}</strong>`)
+  if (lateral) lines.push(`Strona: <strong>${translateLateral(lateral)}</strong>`)
 
   const lightChar = props['seamark:light:character'] || props['seamark:light:1:character']
   if (lightChar) {
     const period = props['seamark:light:period'] || props['seamark:light:1:period']
-    lines.push(`Light: <strong>${lightChar}${period ? ' ' + period + 's' : ''}</strong>`)
+    lines.push(`Światło: <strong>${lightChar}${period ? ' ' + period + 's' : ''}</strong>`)
   }
 
   const colour = props['seamark:buoy_lateral:colour']
     || props['seamark:buoy_cardinal:colour']
     || props['seamark:colour']
-  if (colour) lines.push(`Colour: <strong>${colour.replace(/;/g, ' / ')}</strong>`)
+  if (colour) lines.push(`Kolor: <strong>${translateColour(colour)}</strong>`)
+
+  const info = props['seamark:information'] || props.description || ''
+  if (info) lines.push(`Info: <strong>${info}</strong>`)
 
   return `<div class="seamark-popup">
     <div class="seamark-popup-title">${name || type}</div>
     ${name ? `<div class="seamark-popup-type">${type}</div>` : ''}
     ${lines.length ? `<div class="seamark-popup-details">${lines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
+  </div>`
+}
+
+// ── Area popup data (researched from VTS Zatoka Gdańska / BHMW / Natura 2000) ──
+
+const AREA_INFO = {
+  separation_zone: {
+    label: 'Strefa rozdzielenia ruchu (TSS)',
+    color: '#2b6cb0',
+    badge: 'VTS Zatoka Gdańska',
+    summary: 'Centralna strefa buforowa zatwierdzonego przez IMO Systemu Rozdzielenia Ruchu. W Zatoce Gdańskiej działają dwa TSS: „EAST" (Port Północny / Gdańsk) i „WEST" (Gdynia), monitorowane całą dobę przez Urząd Morski w Gdyni.',
+    rules: [
+      'Nie wchodzić ani nie przekraczać strefy z wyjątkiem sytuacji awaryjnej (COLREGS Reguła 10)',
+      'Jednostki &lt;20 m mogą korzystać z Przybrzeżnej Strefy Ruchu (ITZ), aby ominąć główne tory',
+      'Dołączać do torów lub je przekraczać pod kątem prostym, trzymając się prawej burty',
+      'Narzędzia połowowe zakazane w strefie TSS i w odległości 150 m od granic torów',
+      'Nasłuch na VHF kanał 16 — VTS Gdańsk na kanałach roboczych',
+    ],
+    source: 'VTS Zatoka Gdańska · Urząd Morski w Gdyni',
+  },
+  precautionary_area: {
+    label: 'Obszar ostrożności',
+    color: '#c05621',
+    badge: 'Zachowaj szczególną ostrożność',
+    summary: 'Obszar, w którym ruch statków zbiega się z wielu kierunków. Główny obszar ostrożności wyznacza skrzyżowanie torów TSS EAST i WEST przy boi nawigacyjnej „GN". Jednoczesny ruch ze wszystkich kierunków.',
+    rules: [
+      'Zmniejsz prędkość i prowadź obserwację we wszystkich kierunkach',
+      'Ustąp drogi jednostkom poruszającym się wyznaczonymi torami ruchu',
+      'Unikaj zatrzymywania się i trzymaj się z dala od dróg manewrowych statków handlowych',
+      'Nasłuch na VHF kanał 16',
+    ],
+    source: 'Rozporządzenie VTS Zatoka Gdańska nr 11 (2023)',
+  },
+}
+
+const RESTRICTED_CATEGORIES = {
+  military: {
+    label: 'Wojskowy obszar zastrzeżony',
+    color: '#c53030',
+    badge: 'Wejście zabronione',
+    summary: 'Polski wojskowy obszar zastrzeżony (Dz.U. 2023 poz. 985). Strefy stałe obejmują tor torpedowy przy Oksywiu (baza Marynarki Wojennej w Gdyni). Tymczasowe zamknięcia ogłaszane są co tydzień przez BHMW.',
+    rules: [
+      'Wejście zabronione bez wcześniejszego zezwolenia Dowództwa Marynarki Wojennej',
+      'Sprawdź aktywne zamknięcia na bhmw.gov.pl przed wypłynięciem',
+      'Ostrzeżenia nadawane na VHF kanał 05, 61, 62 i MF 2714 kHz',
+      'Egzekwowane przez Marynarkę Wojenną i Straż Graniczną',
+    ],
+    source: 'Dz.U. 2023 poz. 985 · BHMW (bhmw.gov.pl)',
+  },
+  nature_reserve: {
+    label: 'Rezerwat przyrody',
+    color: '#276749',
+    badge: 'Obszar chroniony',
+    summary: 'Morski rezerwat przyrody w sieci Natura 2000 (PLH220032 / PLB220005). Chroni łąki trawy morskiej, ławice piaskowe i ptaki lęgowe. Zatoka Pucka Wewnętrzna jest objęta ochroną od 1978 roku.',
+    rules: [
+      'Poruszaj się wyłącznie wyznaczonymi, głębszymi kanałami',
+      'Kotwiczenie na łąkach trawy morskiej jest zabronione',
+      'Obowiązują ograniczenia prędkości w celu ochrony przyrody',
+      'Naruszenia zgłaszane do RDOŚ Gdańsk',
+    ],
+    source: 'Natura 2000 PLH220032 / PLB220005 · RDOŚ Gdańsk',
+  },
+  wildlife_refuge: {
+    label: 'Ostoja dzikiej przyrody',
+    color: '#276749',
+    badge: 'Obszar chroniony',
+    summary: 'Obszar wyznaczony do ochrony ptaków i ssaków morskich, w tym fok pospolitych i szarych obecnych w Zatoce Gdańskiej. Część sieci bałtyckich obszarów chronionych.',
+    rules: [
+      'Zmniejsz prędkość w pobliżu brzegów i miejsc odpoczynku fok',
+      'Nie zbliżaj się ani nie płosz odpoczywających ptaków i fok',
+      'Kotwiczenie może być ograniczone — sprawdź lokalne przepisy',
+    ],
+    source: 'RDOŚ Gdańsk · Natura 2000',
+  },
+  anchoring_prohibited: {
+    label: 'Zakaz kotwiczenia',
+    color: '#975a16',
+    badge: 'Zakaz kotwiczenia',
+    summary: 'Kotwiczenie jest zabronione, zazwyczaj ze względu na podmorskie kable, rurociągi, wrażliwe siedliska denne lub bliskość torów portowych.',
+    rules: [
+      'Nie kotwicz — ryzyko uszkodzenia kabla lub rurociągu',
+      'Można korzystać z boi cumowniczych (jeśli są dostępne)',
+    ],
+    source: 'Urząd Morski w Gdyni',
+  },
+  fishing_prohibited: {
+    label: 'Zakaz połowów',
+    color: '#975a16',
+    badge: 'Zakaz połowów',
+    summary: 'Połowy są zabronione w celu ochrony zasobów rybnych, tarlisk lub infrastruktury podwodnej. Dotyczy wszystkich rodzajów sprzętu, w tym trollingu i wędkowania.',
+    rules: [
+      'Zakaz wszelkich połowów komercyjnych i rekreacyjnych',
+    ],
+    source: 'Urząd Morski w Gdyni',
+  },
+}
+
+function buildAreaPopupHTML(props) {
+  const type = props['seamark:type']
+  const category = props['seamark:restricted_area:category']
+    || props['seamark:precautionary_area:category']
+    || props['seamark:separation_zone:category']
+  const name = props.name || props['seamark:name'] || ''
+  const operator = props.operator || props['seamark:operator'] || ''
+
+  let info
+  if (type === 'restricted_area') {
+    info = RESTRICTED_CATEGORIES[category] || {
+      label: 'Obszar zastrzeżony',
+      color: '#c53030',
+      badge: 'Wejście ograniczone',
+      summary: 'Ruch na tym obszarze jest ograniczony. Przed wejściem sprawdź komunikaty Urzędu Morskiego i ostrzeżenia nawigacyjne BHMW.',
+      rules: [
+        'Sprawdź aktualny status na bhmw.gov.pl przed zbliżaniem się',
+        'Nasłuch na VHF kanał 16 w celu otrzymania informacji o ograniczeniach',
+      ],
+      source: 'Urząd Morski w Gdyni',
+    }
+  } else {
+    info = AREA_INFO[type]
+  }
+
+  if (!info) {
+    return `<div class="seamark-popup"><div class="seamark-popup-title">${name || translateType(type)}</div></div>`
+  }
+
+  const title = name || info.label
+  const rulesHTML = info.rules?.length
+    ? `<ul class="area-popup-rules">${info.rules.map(r => `<li>${r}</li>`).join('')}</ul>`
+    : ''
+  const operatorHTML = operator ? `<div class="area-popup-meta">Operator: ${operator}</div>` : ''
+  const categoryHTML = (category && name) ? `<div class="area-popup-meta">Kategoria: ${category.replace(/_/g, ' ')}</div>` : ''
+
+  return `<div class="area-popup">
+    <div class="area-popup-header" style="background:${info.color}">
+      <div class="area-popup-title">${title}</div>
+      <div class="area-popup-badge">${info.badge}</div>
+    </div>
+    <div class="area-popup-body">
+      ${name && name !== info.label ? `<div class="area-popup-type">${info.label}</div>` : ''}
+      <p class="area-popup-summary">${info.summary}</p>
+      ${rulesHTML}
+      ${categoryHTML}${operatorHTML}
+      ${info.source ? `<div class="area-popup-source">Źródło: ${info.source}</div>` : ''}
+    </div>
   </div>`
 }
 
@@ -180,6 +305,24 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
         map.getCanvas().style.cursor = 'pointer'
       })
       map.on('mouseleave', 'seamarks-points', () => {
+        map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
+      })
+
+      // Seamark area popup
+      map.on('click', 'seamarks-areas-fill', e => {
+        if (isMeasuringRef.current) return
+        if (map.queryRenderedFeatures(e.point, { layers: ['seamarks-points'] }).length > 0) return
+        const feature = e.features[0]
+        new mapboxgl.Popup({ maxWidth: '300px', className: 'area-popup-wrapper' })
+          .setLngLat(e.lngLat)
+          .setHTML(buildAreaPopupHTML(feature.properties))
+          .addTo(map)
+      })
+
+      map.on('mouseenter', 'seamarks-areas-fill', () => {
+        map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', 'seamarks-areas-fill', () => {
         map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
       })
 

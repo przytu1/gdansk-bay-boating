@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import MapView from './components/MapView'
 import DistanceBar from './components/DistanceBar'
-import { fetchSeamarks } from './utils/seamarks'
+import { fetchSeamarks, getSeamarksCacheInfo, clearSeamarksCache } from './utils/seamarks'
 
 const STORAGE_KEY = 'bay-nav-measurements'
 
@@ -24,10 +24,16 @@ export default function App() {
   const [seamarksData, setSeamarksData] = useState(null)
   const [seamarksLoading, setSeamarksLoading] = useState(false)
   const [seamarksError, setSeamarksError] = useState(null)
+  const [seamarksInfo, setSeamarksInfo] = useState(getSeamarksCacheInfo)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedMeasurements))
   }, [savedMeasurements])
+
+  // Update cache info whenever data loads
+  useEffect(() => {
+    if (seamarksData) setSeamarksInfo(getSeamarksCacheInfo())
+  }, [seamarksData])
 
   // Fetch seamarks on first toggle-on
   useEffect(() => {
@@ -36,8 +42,19 @@ export default function App() {
     setSeamarksError(null)
     fetchSeamarks()
       .then(data => { setSeamarksData(data); setSeamarksLoading(false) })
-      .catch(() => { setSeamarksError('Could not load seamarks. Check connection.'); setSeamarksLoading(false) })
+      .catch(() => { setSeamarksError('Nie udało się załadować znaków nawigacyjnych. Sprawdź połączenie.'); setSeamarksLoading(false) })
   }, [visibleLayers.seamarks, seamarksData])
+
+  function handleRefreshSeamarks() {
+    clearSeamarksCache()
+    setSeamarksData(null)
+    setSeamarksError(null)
+    setSeamarksInfo(null)
+    setSeamarksLoading(true)
+    fetchSeamarks()
+      .then(data => { setSeamarksData(data); setSeamarksLoading(false) })
+      .catch(() => { setSeamarksError('Nie udało się zaktualizować bazy. Sprawdź połączenie.'); setSeamarksLoading(false) })
+  }
 
   function handleToolChange(toolId) {
     const next = activeTool === toolId ? null : toolId
@@ -82,7 +99,7 @@ export default function App() {
 
   return (
     <div className="layout">
-      <button className="hamburger" onClick={() => setMenuOpen(true)} aria-label="Open menu">
+      <button className="hamburger" onClick={() => setMenuOpen(true)} aria-label="Otwórz menu">
         <HamburgerIcon />
       </button>
       <Sidebar
@@ -94,6 +111,8 @@ export default function App() {
         onLayerToggle={handleLayerToggle}
         seamarksLoading={seamarksLoading}
         seamarksError={seamarksError}
+        seamarksInfo={seamarksInfo}
+        onRefreshSeamarks={handleRefreshSeamarks}
         savedMeasurements={savedMeasurements}
         editingId={editingId}
         onLoadMeasurement={handleLoadMeasurement}

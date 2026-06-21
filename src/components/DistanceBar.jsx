@@ -13,7 +13,7 @@ export default function DistanceBar({ points, editingMeasurement, onSave }) {
   if (points.length < 2) {
     return (
       <div className="distance-bar distance-bar--hint">
-        Click on the map to place measurement points
+        Kliknij mapę, aby dodać punkty pomiaru
       </div>
     )
   }
@@ -35,7 +35,7 @@ export default function DistanceBar({ points, editingMeasurement, onSave }) {
         <span className="distance-km">{km.toFixed(2)} km</span>
         <span className="distance-sep">·</span>
         <span className="distance-nm">{nm.toFixed(2)} NM</span>
-        <span className="distance-pts">{points.length} pts</span>
+        <span className="distance-pts">{points.length} pkt</span>
       </div>
       <div className="distance-actions">
         {saving ? (
@@ -44,7 +44,7 @@ export default function DistanceBar({ points, editingMeasurement, onSave }) {
               className="distance-name-input"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Name this measurement…"
+              placeholder="Nazwa pomiaru…"
               autoFocus
               onKeyDown={e => {
                 if (e.key === 'Enter') handleSaveClick()
@@ -56,15 +56,15 @@ export default function DistanceBar({ points, editingMeasurement, onSave }) {
               onClick={handleSaveClick}
               disabled={!name.trim()}
             >
-              Confirm
+              Zapisz
             </button>
             <button className="distance-btn" onClick={() => setSaving(false)}>
-              Cancel
+              Anuluj
             </button>
           </>
         ) : (
           <button className="distance-btn distance-btn--primary" onClick={handleSaveClick}>
-            {editingMeasurement ? `Update "${editingMeasurement.name}"` : 'Save'}
+            {editingMeasurement ? `Aktualizuj „${editingMeasurement.name}"` : 'Zapisz'}
           </button>
         )}
       </div>

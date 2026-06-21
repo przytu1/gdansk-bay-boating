@@ -36,6 +36,20 @@ function osmToGeoJSON(response) {
   return { type: 'FeatureCollection', features }
 }
 
+export function getSeamarksCacheInfo() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY))
+    if (!cached) return null
+    return { timestamp: cached.ts, count: cached.data?.features?.length ?? 0 }
+  } catch {
+    return null
+  }
+}
+
+export function clearSeamarksCache() {
+  localStorage.removeItem(CACHE_KEY)
+}
+
 export async function fetchSeamarks() {
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY))

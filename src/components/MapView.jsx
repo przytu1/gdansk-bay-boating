@@ -20,27 +20,27 @@ function makeFuelIcon() {
   ctx.shadowBlur = 4
   ctx.shadowOffsetY = 2
 
-  // Green square background
-  ctx.fillStyle = '#15803d'
+  // Yellow square background
+  ctx.fillStyle = '#facc15'
   ctx.fillRect(0, 0, size, size)
   ctx.shadowBlur = 0
   ctx.shadowOffsetY = 0
 
-  // White border
-  ctx.strokeStyle = '#ffffff'
+  // Black border
+  ctx.strokeStyle = '#000000'
   ctx.lineWidth = 2.5
   ctx.strokeRect(1.25, 1.25, size - 2.5, size - 2.5)
 
-  // Pump body (white rectangle)
-  ctx.fillStyle = '#ffffff'
+  // Pump body (black rectangle)
+  ctx.fillStyle = '#000000'
   ctx.fillRect(9, 9, 13, 23)
 
-  // Display window (darker green cutout)
-  ctx.fillStyle = '#14532d'
+  // Display window (yellow cutout)
+  ctx.fillStyle = '#facc15'
   ctx.fillRect(10.5, 10.5, 10, 6.5)
 
-  // Nozzle arm
-  ctx.strokeStyle = '#ffffff'
+  // Nozzle arm (black)
+  ctx.strokeStyle = '#000000'
   ctx.lineWidth = 2.8
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
@@ -51,8 +51,8 @@ function makeFuelIcon() {
   ctx.lineTo(27, 25)
   ctx.stroke()
 
-  // Base bar
-  ctx.fillStyle = '#ffffff'
+  // Base bar (black)
+  ctx.fillStyle = '#000000'
   ctx.fillRect(8, 31, 15, 3)
 
   // Return ImageData — explicitly supported by Mapbox addImage on all platforms

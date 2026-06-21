@@ -40,6 +40,42 @@ function buildPopupHTML(props) {
   </div>`
 }
 
+function buildLockPopupHTML(props) {
+  const isGate = props._featureType === 'lock_gate'
+  const name = props.name || (isGate ? 'Wrota śluzy' : 'Śluza')
+  const subtitle = isGate ? 'Wrota śluzy' : 'Śluza'
+  const lines = []
+
+  const len = props['lock:length'] || props['seamark:lock:length']
+  const wid = props['lock:width'] || props['seamark:lock:width']
+  const dep = props['lock:depth'] || props['maxdraught'] || props['seamark:lock:depth']
+
+  if (len && wid) lines.push(`Wymiary komory: <strong>${len} m × ${wid} m</strong>`)
+  else if (len) lines.push(`Długość: <strong>${len} m</strong>`)
+  else if (wid) lines.push(`Szerokość: <strong>${wid} m</strong>`)
+  if (dep) lines.push(`Głębokość progu: <strong>${dep} m</strong>`)
+
+  const hours = props.opening_hours
+  if (hours) lines.push(`Godziny: <strong>${hours}</strong>`)
+
+  const phone = props.phone || props['contact:phone']
+  if (phone) lines.push(`Telefon: <strong>${phone}</strong>`)
+
+  const vhf = props['seamark:vhf_channel'] || props['communication:radio']
+  if (vhf) lines.push(`VHF: <strong>kanał ${vhf}</strong>`)
+
+  const fee = props.fee
+  if (fee === 'yes') lines.push(`Opłata: <strong>tak</strong>`)
+  else if (fee === 'no') lines.push(`Opłata: <strong>nie</strong>`)
+  else if (fee) lines.push(`Opłata: <strong>${fee}</strong>`)
+
+  return `<div class="seamark-popup">
+    <div class="seamark-popup-title">${name}</div>
+    ${name !== subtitle ? `<div class="seamark-popup-type">${subtitle}</div>` : ''}
+    ${lines.length ? `<div class="seamark-popup-details">${lines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
+  </div>`
+}
+
 // ── Area popup data (researched from VTS Zatoka Gdańska / BHMW / Natura 2000) ──
 
 const AREA_INFO = {
@@ -270,13 +306,14 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
         layout: { visibility: 'none' },
         paint: {
           'fill-color': [
-            'match', ['get', 'seamark:type'],
-            'restricted_area', '#fc8181',
-            'precautionary_area', '#f6ad55',
-            'separation_zone', '#90cdf4',
+            'case',
+            ['==', ['get', 'seamark:type'], 'restricted_area'], '#fc8181',
+            ['==', ['get', 'seamark:type'], 'precautionary_area'], '#f6ad55',
+            ['==', ['get', 'seamark:type'], 'separation_zone'], '#90cdf4',
+            ['==', ['get', 'waterway'], 'lock'], '#fbd38d',
             '#a0aec0',
           ],
-          'fill-opacity': 0.2,
+          'fill-opacity': 0.25,
         },
       })
 
@@ -288,10 +325,11 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
         layout: { visibility: 'none' },
         paint: {
           'line-color': [
-            'match', ['get', 'seamark:type'],
-            'restricted_area', '#e53e3e',
-            'precautionary_area', '#dd6b20',
-            'separation_zone', '#3182ce',
+            'case',
+            ['==', ['get', 'seamark:type'], 'restricted_area'], '#e53e3e',
+            ['==', ['get', 'seamark:type'], 'precautionary_area'], '#dd6b20',
+            ['==', ['get', 'seamark:type'], 'separation_zone'], '#3182ce',
+            ['==', ['get', 'waterway'], 'lock'], '#b45309',
             '#718096',
           ],
           'line-width': 2,
@@ -320,6 +358,8 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
             ['in', ['get', 'seamark:type'], ['literal', ['light_major', 'light_minor', 'lighthouse']]], '#f6ad55',
             ['==', ['get', 'seamark:type'], 'wreck'], '#744210',
             ['==', ['get', 'seamark:type'], 'rock'], '#e2e8f0',
+            ['in', ['get', '_featureType'], ['literal', ['lock', 'lock_centroid']]], '#92400e',
+            ['==', ['get', '_featureType'], 'lock_gate'], '#b45309',
             '#718096',
           ],
           'circle-stroke-width': 1.5,
@@ -331,12 +371,14 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
         },
       })
 
-      // Seamark point popup
+      // Seamark / lock point popup
       map.on('click', 'seamarks-points', e => {
         const feature = e.features[0]
+        const ft = feature.properties._featureType
+        const isLock = ft === 'lock' || ft === 'lock_centroid' || ft === 'lock_gate'
         new mapboxgl.Popup({ maxWidth: '320px', closeButton: false, className: 'seamark-point-popup' })
           .setLngLat(feature.geometry.coordinates.slice())
-          .setHTML(buildPopupHTML(feature.properties))
+          .setHTML(isLock ? buildLockPopupHTML(feature.properties) : buildPopupHTML(feature.properties))
           .addTo(map)
       })
 
@@ -347,11 +389,18 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
         map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
       })
 
-      // Seamark area popup
+      // Seamark / lock area popup
       map.on('click', 'seamarks-areas-fill', e => {
         if (isMeasuringRef.current) return
         if (map.queryRenderedFeatures(e.point, { layers: ['seamarks-points'] }).length > 0) return
         const feature = e.features[0]
+        if (feature.properties._featureType === 'lock') {
+          new mapboxgl.Popup({ maxWidth: '320px', closeButton: false, className: 'seamark-point-popup' })
+            .setLngLat(e.lngLat)
+            .setHTML(buildLockPopupHTML(feature.properties))
+            .addTo(map)
+          return
+        }
         new mapboxgl.Popup({ maxWidth: '360px', closeButton: false, className: 'area-popup-wrapper' })
           .setLngLat(e.lngLat)
           .setHTML(buildAreaPopupHTML(feature.properties))

@@ -1,25 +1,44 @@
-const CACHE_KEY = 'bay-nav-seamarks-v1'
+const CACHE_KEY = 'bay-nav-seamarks-v2'
 const CACHE_TTL = 24 * 60 * 60 * 1000
 
-// Gdańsk Bay bounding box: south, west, north, east
-const BBOX = '54.2,18.3,54.9,19.2'
+// Combined bbox: Zatoka Gdańska + Pętla Żuławska (south, west, north, east)
+const BBOX = '53.8,18.3,54.9,19.95'
 
-const OVERPASS_QUERY = `[out:json][timeout:30];
+const OVERPASS_QUERY = `[out:json][timeout:60];
 (
   node["seamark:type"](${BBOX});
   way["seamark:type"](${BBOX});
+  node["waterway"="lock"](${BBOX});
+  way["waterway"="lock"](${BBOX});
+  node["waterway"="lock_gate"](${BBOX});
 );
 out body geom;`
+
+function centroid(coords) {
+  const n = coords.length
+  return [
+    coords.reduce((s, c) => s + c[0], 0) / n,
+    coords.reduce((s, c) => s + c[1], 0) / n,
+  ]
+}
 
 function osmToGeoJSON(response) {
   const features = []
 
   for (const el of response.elements) {
+    const tags = el.tags || {}
+    const featureType = tags['seamark:type']
+      ? 'seamark'
+      : tags.waterway === 'lock_gate' ? 'lock_gate'
+      : tags.waterway === 'lock' ? 'lock'
+      : 'seamark'
+    const props = { ...tags, _featureType: featureType }
+
     if (el.type === 'node') {
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [el.lon, el.lat] },
-        properties: el.tags || {},
+        properties: props,
       })
     } else if (el.type === 'way' && el.geometry?.length > 2) {
       const coords = el.geometry.map(p => [p.lon, p.lat])
@@ -28,8 +47,15 @@ function osmToGeoJSON(response) {
       features.push({
         type: 'Feature',
         geometry: { type: 'Polygon', coordinates: [coords] },
-        properties: el.tags || {},
+        properties: props,
       })
+      if (featureType === 'lock') {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: centroid(coords.slice(0, -1)) },
+          properties: { ...props, _featureType: 'lock_centroid' },
+        })
+      }
     }
   }
 

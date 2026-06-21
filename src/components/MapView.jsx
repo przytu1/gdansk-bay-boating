@@ -295,7 +295,7 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
       // Seamark point popup
       map.on('click', 'seamarks-points', e => {
         const feature = e.features[0]
-        new mapboxgl.Popup({ maxWidth: '260px' })
+        new mapboxgl.Popup({ maxWidth: '320px', closeButton: false, className: 'seamark-point-popup' })
           .setLngLat(feature.geometry.coordinates.slice())
           .setHTML(buildPopupHTML(feature.properties))
           .addTo(map)
@@ -313,7 +313,7 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
         if (isMeasuringRef.current) return
         if (map.queryRenderedFeatures(e.point, { layers: ['seamarks-points'] }).length > 0) return
         const feature = e.features[0]
-        new mapboxgl.Popup({ maxWidth: '300px', className: 'area-popup-wrapper' })
+        new mapboxgl.Popup({ maxWidth: '360px', closeButton: false, className: 'area-popup-wrapper' })
           .setLngLat(e.lngLat)
           .setHTML(buildAreaPopupHTML(feature.properties))
           .addTo(map)

@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import Sidebar from './components/Sidebar'
 import MapView from './components/MapView'
 import DistanceBar from './components/DistanceBar'
+import FuelStationForm from './components/FuelStationForm'
 import { fetchSeamarks, getSeamarksCacheInfo, clearSeamarksCache } from './utils/seamarks'
-import { fetchFuelStations } from './utils/fuel'
+import { loadCustomFuelStations, saveCustomFuelStations, stationsToGeoJSON } from './utils/customFuel'
 
 const STORAGE_KEY = 'bay-nav-measurements'
 
@@ -22,9 +23,9 @@ export default function App() {
 
   // Layer toggles (independent)
   const [visibleLayers, setVisibleLayers] = useState({ seamarks: false, fuel: false })
-  const [fuelData, setFuelData] = useState(null)
-  const [fuelLoading, setFuelLoading] = useState(false)
-  const [fuelError, setFuelError] = useState(null)
+  const [customFuelStations, setCustomFuelStations] = useState(loadCustomFuelStations)
+  const [isPlacingFuel, setIsPlacingFuel] = useState(false)
+  const [pendingFuelPoint, setPendingFuelPoint] = useState(null)
   const [seamarksData, setSeamarksData] = useState(null)
   const [seamarksLoading, setSeamarksLoading] = useState(false)
   const [seamarksError, setSeamarksError] = useState(null)
@@ -33,6 +34,13 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedMeasurements))
   }, [savedMeasurements])
+
+  // Persist custom fuel stations
+  useEffect(() => {
+    saveCustomFuelStations(customFuelStations)
+  }, [customFuelStations])
+
+  const fuelData = useMemo(() => stationsToGeoJSON(customFuelStations), [customFuelStations])
 
   // Update cache info whenever data loads
   useEffect(() => {
@@ -49,15 +57,34 @@ export default function App() {
       .catch(() => { setSeamarksError('Nie udało się załadować znaków nawigacyjnych. Sprawdź połączenie.'); setSeamarksLoading(false) })
   }, [visibleLayers.seamarks, seamarksData])
 
-  // Fetch fuel stations on first toggle-on
-  useEffect(() => {
-    if (!visibleLayers.fuel || fuelData) return
-    setFuelLoading(true)
-    setFuelError(null)
-    fetchFuelStations()
-      .then(data => { setFuelData(data); setFuelLoading(false) })
-      .catch(() => { setFuelError('Nie udało się załadować stacji paliw. Sprawdź połączenie.'); setFuelLoading(false) })
-  }, [visibleLayers.fuel, fuelData])
+  function handleStartPlaceFuel() {
+    setMenuOpen(false)
+    setIsPlacingFuel(true)
+    setPendingFuelPoint(null)
+    setVisibleLayers(prev => ({ ...prev, fuel: true }))
+  }
+
+  function handleMapFuelPoint(point) {
+    setPendingFuelPoint(point)
+  }
+
+  function handleSaveFuelStation({ name, info }) {
+    setCustomFuelStations(prev => [
+      ...prev,
+      { id: crypto.randomUUID(), name, info, lng: pendingFuelPoint.lng, lat: pendingFuelPoint.lat, createdAt: Date.now() },
+    ])
+    setPendingFuelPoint(null)
+    setIsPlacingFuel(false)
+  }
+
+  function handleCancelFuelPlace() {
+    setIsPlacingFuel(false)
+    setPendingFuelPoint(null)
+  }
+
+  function handleDeleteFuelStation(id) {
+    setCustomFuelStations(prev => prev.filter(s => s.id !== id))
+  }
 
   function handleRefreshSeamarks() {
     clearSeamarksCache()
@@ -127,8 +154,9 @@ export default function App() {
         seamarksError={seamarksError}
         seamarksInfo={seamarksInfo}
         onRefreshSeamarks={handleRefreshSeamarks}
-        fuelLoading={fuelLoading}
-        fuelError={fuelError}
+        customFuelStations={customFuelStations}
+        onStartPlaceFuel={handleStartPlaceFuel}
+        onDeleteFuelStation={handleDeleteFuelStation}
         savedMeasurements={savedMeasurements}
         editingId={editingId}
         onLoadMeasurement={handleLoadMeasurement}
@@ -143,7 +171,22 @@ export default function App() {
           seamarksData={seamarksData}
           fuelVisible={visibleLayers.fuel}
           fuelData={fuelData}
+          isPlacingFuel={isPlacingFuel}
+          onPlaceFuelPoint={handleMapFuelPoint}
         />
+        {isPlacingFuel && !pendingFuelPoint && (
+          <div className="place-fuel-banner">
+            <span>Kliknij na mapie gdzie znajduje się stacja paliw</span>
+            <button onClick={handleCancelFuelPlace}>Anuluj</button>
+          </div>
+        )}
+        {pendingFuelPoint && (
+          <FuelStationForm
+            point={pendingFuelPoint}
+            onSave={handleSaveFuelStation}
+            onCancel={handleCancelFuelPlace}
+          />
+        )}
         {activeTool === 'measure' && (
           <DistanceBar
             points={measurePoints}

@@ -26,8 +26,9 @@ export default function Sidebar({
   seamarksError,
   seamarksInfo,
   onRefreshSeamarks,
-  fuelLoading,
-  fuelError,
+  customFuelStations,
+  onStartPlaceFuel,
+  onDeleteFuelStation,
   savedMeasurements,
   editingId,
   onLoadMeasurement,
@@ -72,13 +73,9 @@ export default function Sidebar({
                   <span className={`sidebar-layer-dot${visibleLayers[item.id] ? ' sidebar-layer-dot--on' : ''}`} />
                 )}
                 {item.id === 'seamarks' && seamarksLoading && <span className="sidebar-spinner" />}
-                {item.id === 'fuel' && fuelLoading && <span className="sidebar-spinner" />}
               </button>
               {item.id === 'seamarks' && seamarksError && isActive(item) && (
                 <p className="sidebar-error">{seamarksError}</p>
-              )}
-              {item.id === 'fuel' && fuelError && isActive(item) && (
-                <p className="sidebar-error">{fuelError}</p>
               )}
             </li>
           ))}
@@ -108,6 +105,30 @@ export default function Sidebar({
               disabled={seamarksLoading}
             >
               {seamarksLoading ? 'Aktualizowanie…' : 'Zaktualizuj bazę punktów nawigacyjnych'}
+            </button>
+
+            <div className="sidebar-panel-divider" />
+            <div className="sidebar-panel-title">Stacje paliw</div>
+            {customFuelStations.length === 0 ? (
+              <p className="sidebar-panel-empty">Brak zapisanych stacji</p>
+            ) : (
+              <ul className="sidebar-saved-list">
+                {customFuelStations.map(s => (
+                  <li key={s.id} className="sidebar-saved-item">
+                    <span className="sidebar-saved-name sidebar-saved-name--fuel">{s.name}</span>
+                    <button
+                      className="sidebar-saved-delete"
+                      onClick={() => onDeleteFuelStation(s.id)}
+                      aria-label={`Usuń ${s.name}`}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button className="settings-update-btn settings-update-btn--green" onClick={onStartPlaceFuel}>
+              Dodaj stację paliw
             </button>
           </div>
         )}

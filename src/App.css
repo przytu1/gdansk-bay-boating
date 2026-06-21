@@ -186,3 +186,148 @@ html, body, #root {
   margin-top: 8px;
   font-family: system-ui, sans-serif;
 }
+
+/* Placement mode banner */
+.place-fuel-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #1a2e3d;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  padding: 10px 16px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  white-space: nowrap;
+}
+
+.place-fuel-banner button {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: #fff;
+  font-size: 13px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+}
+
+.place-fuel-banner button:hover {
+  background: rgba(255,255,255,0.25);
+}
+
+/* Fuel station form modal */
+.fuel-form-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.fuel-form {
+  background: #fff;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  font-family: system-ui, sans-serif;
+}
+
+.fuel-form-header {
+  background: #15803d;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 14px 18px;
+}
+
+.fuel-form-coords {
+  font-size: 12px;
+  color: #607d8b;
+  padding: 8px 18px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.fuel-form form {
+  padding: 12px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fuel-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fuel-form-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a5568;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.fuel-form-field input,
+.fuel-form-field textarea {
+  border: 1px solid #cbd5e0;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: system-ui, sans-serif;
+  color: #1a2e3d;
+  resize: vertical;
+  outline: none;
+  border-radius: 0;
+}
+
+.fuel-form-field input:focus,
+.fuel-form-field textarea:focus {
+  border-color: #0077cc;
+  box-shadow: 0 0 0 2px rgba(0,119,204,0.15);
+}
+
+.fuel-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.fuel-form-cancel {
+  background: #fff;
+  border: 1px solid #cbd5e0;
+  color: #4a5568;
+  font-size: 14px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+  border-radius: 0;
+}
+
+.fuel-form-save {
+  background: #15803d;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 18px;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+  border-radius: 0;
+}
+
+.fuel-form-save:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.fuel-form-cancel:hover { background: #f7fafc; }
+.fuel-form-save:not(:disabled):hover { background: #166534; }

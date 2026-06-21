@@ -61,33 +61,12 @@ function makeFuelIcon() {
 
 function buildFuelPopupHTML(props) {
   const name = props.name || 'Stacja paliw'
-  const lines = []
-
-  const fuels = []
-  if (props['fuel:diesel'] === 'yes') fuels.push('olej napędowy')
-  if (props['fuel:octane_95'] === 'yes' || props['fuel:petrol'] === 'yes') fuels.push('benzyna')
-  if (props['fuel:lpg'] === 'yes') fuels.push('LPG')
-  if (fuels.length) lines.push(`Paliwa: <strong>${fuels.join(', ')}</strong>`)
-
-  const hours = props.opening_hours
-  if (hours) lines.push(`Godziny: <strong>${hours}</strong>`)
-
-  const phone = props.phone || props['contact:phone']
-  if (phone) lines.push(`Telefon: <strong>${phone}</strong>`)
-
-  const vhf = props['communication:radio'] || props['seamark:vhf_channel']
-  if (vhf) lines.push(`VHF: <strong>kanał ${vhf}</strong>`)
-
-  const operator = props.operator
-  if (operator) lines.push(`Operator: <strong>${operator}</strong>`)
-
-  const source = props._source
-  if (source) lines.push(`Źródło: <strong>${source}</strong>`)
+  const infoLines = (props.info || '').split('\n').filter(Boolean)
 
   return `<div class="seamark-popup">
     <div class="seamark-popup-title">${name}</div>
     <div class="seamark-popup-type">Stacja paliw dla łodzi</div>
-    ${lines.length ? `<div class="seamark-popup-details">${lines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
+    ${infoLines.length ? `<div class="seamark-popup-details">${infoLines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
   </div>`
 }
 
@@ -343,14 +322,18 @@ function buildAreaPopupHTML(props) {
   </div>`
 }
 
-export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamarksVisible, seamarksData, fuelVisible, fuelData }) {
+export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamarksVisible, seamarksData, fuelVisible, fuelData, isPlacingFuel, onPlaceFuelPoint }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const isMeasuringRef = useRef(isMeasuring)
   const onAddPointRef = useRef(onAddPoint)
+  const isPlacingFuelRef = useRef(isPlacingFuel)
+  const onPlaceFuelPointRef = useRef(onPlaceFuelPoint)
 
   useEffect(() => { isMeasuringRef.current = isMeasuring }, [isMeasuring])
   useEffect(() => { onAddPointRef.current = onAddPoint }, [onAddPoint])
+  useEffect(() => { isPlacingFuelRef.current = isPlacingFuel }, [isPlacingFuel])
+  useEffect(() => { onPlaceFuelPointRef.current = onPlaceFuelPoint }, [onPlaceFuelPoint])
 
   useEffect(() => {
     if (mapRef.current) return
@@ -519,7 +502,7 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
       })
 
       map.on('click', 'fuel-points', e => {
-        if (isMeasuringRef.current) return
+        if (isMeasuringRef.current || isPlacingFuelRef.current) return
         const feature = e.features[0]
         new mapboxgl.Popup({ maxWidth: '320px', closeButton: false, className: 'seamark-point-popup' })
           .setLngLat(feature.geometry.coordinates.slice())
@@ -563,8 +546,12 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
       })
     })
 
-    // General click — measure points (skip if clicking on a seamark)
+    // General click — fuel placement or measure points
     map.on('click', e => {
+      if (isPlacingFuelRef.current) {
+        onPlaceFuelPointRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat })
+        return
+      }
       if (!isMeasuringRef.current) return
       const hit = map.queryRenderedFeatures(e.point, { layers: ['seamarks-points'] })
       if (hit.length > 0) return
@@ -575,10 +562,10 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
     return () => { map.remove(); mapRef.current = null }
   }, [])
 
-  // Crosshair cursor when measuring
+  // Crosshair cursor when measuring or placing fuel
   useEffect(() => {
-    mapRef.current?.getCanvas().style.setProperty('cursor', isMeasuring ? 'crosshair' : '')
-  }, [isMeasuring])
+    mapRef.current?.getCanvas().style.setProperty('cursor', (isMeasuring || isPlacingFuel) ? 'crosshair' : '')
+  }, [isMeasuring, isPlacingFuel])
 
   // Update measure layer data
   useEffect(() => {
@@ -612,8 +599,8 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    if (fuelData) map.getSource('fuel')?.setData(fuelData)
-    const vis = fuelVisible && fuelData ? 'visible' : 'none'
+    map.getSource('fuel')?.setData(fuelData)
+    const vis = fuelVisible ? 'visible' : 'none'
     if (map.getLayer('fuel-points')) map.setLayoutProperty('fuel-points', 'visibility', vis)
   }, [fuelVisible, fuelData])
 

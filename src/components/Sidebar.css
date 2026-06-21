@@ -315,3 +315,25 @@
     justify-content: center;
   }
 }
+
+.sidebar-panel-divider {
+  border: none;
+  border-top: 1px solid var(--sidebar-border);
+  margin: 8px 12px 16px;
+}
+
+.settings-update-btn--green {
+  background: #15803d;
+}
+
+.settings-update-btn--green:hover:not(:disabled) {
+  background: #166534;
+}
+
+.sidebar-saved-name--fuel {
+  flex: 1;
+  padding: 8px 8px 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}

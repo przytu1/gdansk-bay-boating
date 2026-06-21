@@ -69,10 +69,17 @@ export default function App() {
   }
 
   function handleSaveFuelStation({ name, info }) {
-    setCustomFuelStations(prev => [
-      ...prev,
-      { id: crypto.randomUUID(), name, info, lng: pendingFuelPoint.lng, lat: pendingFuelPoint.lat, createdAt: Date.now() },
-    ])
+    const point = pendingFuelPoint
+    if (!point) return
+    const newStation = {
+      id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
+      name,
+      info: info || '',
+      lng: point.lng,
+      lat: point.lat,
+      createdAt: Date.now(),
+    }
+    setCustomFuelStations(prev => [...prev, newStation])
     setPendingFuelPoint(null)
     setIsPlacingFuel(false)
   }

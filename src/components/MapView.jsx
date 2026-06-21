@@ -60,8 +60,9 @@ function makeFuelIcon() {
 }
 
 function buildFuelPopupHTML(props) {
-  const name = props.name || 'Stacja paliw'
-  const infoLines = (props.info || '').split('\n').filter(Boolean)
+  const name = (props && props.name) ? props.name : 'Stacja paliw'
+  const rawInfo = (props && props.info != null) ? String(props.info) : ''
+  const infoLines = rawInfo.split('\n').filter(Boolean)
 
   return `<div class="seamark-popup">
     <div class="seamark-popup-title">${name}</div>

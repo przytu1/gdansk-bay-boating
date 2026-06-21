@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import MapView from './components/MapView'
 import DistanceBar from './components/DistanceBar'
 import { fetchSeamarks, getSeamarksCacheInfo, clearSeamarksCache } from './utils/seamarks'
+import { fetchFuelStations } from './utils/fuel'
 
 const STORAGE_KEY = 'bay-nav-measurements'
 
@@ -20,7 +21,10 @@ export default function App() {
   const [savedMeasurements, setSavedMeasurements] = useState(loadSaved)
 
   // Layer toggles (independent)
-  const [visibleLayers, setVisibleLayers] = useState({ seamarks: false })
+  const [visibleLayers, setVisibleLayers] = useState({ seamarks: false, fuel: false })
+  const [fuelData, setFuelData] = useState(null)
+  const [fuelLoading, setFuelLoading] = useState(false)
+  const [fuelError, setFuelError] = useState(null)
   const [seamarksData, setSeamarksData] = useState(null)
   const [seamarksLoading, setSeamarksLoading] = useState(false)
   const [seamarksError, setSeamarksError] = useState(null)
@@ -44,6 +48,16 @@ export default function App() {
       .then(data => { setSeamarksData(data); setSeamarksLoading(false) })
       .catch(() => { setSeamarksError('Nie udało się załadować znaków nawigacyjnych. Sprawdź połączenie.'); setSeamarksLoading(false) })
   }, [visibleLayers.seamarks, seamarksData])
+
+  // Fetch fuel stations on first toggle-on
+  useEffect(() => {
+    if (!visibleLayers.fuel || fuelData) return
+    setFuelLoading(true)
+    setFuelError(null)
+    fetchFuelStations()
+      .then(data => { setFuelData(data); setFuelLoading(false) })
+      .catch(() => { setFuelError('Nie udało się załadować stacji paliw. Sprawdź połączenie.'); setFuelLoading(false) })
+  }, [visibleLayers.fuel, fuelData])
 
   function handleRefreshSeamarks() {
     clearSeamarksCache()
@@ -113,6 +127,8 @@ export default function App() {
         seamarksError={seamarksError}
         seamarksInfo={seamarksInfo}
         onRefreshSeamarks={handleRefreshSeamarks}
+        fuelLoading={fuelLoading}
+        fuelError={fuelError}
         savedMeasurements={savedMeasurements}
         editingId={editingId}
         onLoadMeasurement={handleLoadMeasurement}
@@ -125,6 +141,8 @@ export default function App() {
           onAddPoint={handleAddPoint}
           seamarksVisible={visibleLayers.seamarks}
           seamarksData={seamarksData}
+          fuelVisible={visibleLayers.fuel}
+          fuelData={fuelData}
         />
         {activeTool === 'measure' && (
           <DistanceBar

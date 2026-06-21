@@ -8,6 +8,89 @@ const GDANSK_BAY_CENTER = [18.709516900145584, 54.428935648705995]
 
 const SEAMARK_LAYERS = ['seamarks-points', 'seamarks-areas-fill', 'seamarks-areas-line']
 
+function makeFuelIcon() {
+  const size = 44
+  const c = document.createElement('canvas')
+  c.width = size
+  c.height = size
+  const ctx = c.getContext('2d')
+
+  // Drop shadow
+  ctx.shadowColor = 'rgba(0,0,0,0.32)'
+  ctx.shadowBlur = 4
+  ctx.shadowOffsetY = 2
+
+  // Background circle
+  ctx.beginPath()
+  ctx.arc(22, 22, 19, 0, Math.PI * 2)
+  ctx.fillStyle = '#c05621'
+  ctx.fill()
+  ctx.shadowBlur = 0
+  ctx.shadowOffsetY = 0
+
+  // White ring
+  ctx.beginPath()
+  ctx.arc(22, 22, 19, 0, Math.PI * 2)
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  // Pump body (white rectangle)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(9, 9, 13, 23)
+
+  // Display window (darker cutout)
+  ctx.fillStyle = '#92400e'
+  ctx.fillRect(10.5, 10.5, 10, 6.5)
+
+  // Nozzle arm
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 2.8
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.beginPath()
+  ctx.moveTo(22, 15)    // exits pump body
+  ctx.lineTo(29, 15)    // horizontal right
+  ctx.lineTo(29, 23)    // vertical down
+  ctx.lineTo(27, 25)    // nozzle tip
+  ctx.stroke()
+
+  // Base bar
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(8, 31, 15, 3)
+
+  return c
+}
+
+function buildFuelPopupHTML(props) {
+  const name = props.name || 'Stacja paliw'
+  const lines = []
+
+  const fuels = []
+  if (props['fuel:diesel'] === 'yes') fuels.push('olej napędowy')
+  if (props['fuel:octane_95'] === 'yes' || props['fuel:petrol'] === 'yes') fuels.push('benzyna')
+  if (props['fuel:lpg'] === 'yes') fuels.push('LPG')
+  if (fuels.length) lines.push(`Paliwa: <strong>${fuels.join(', ')}</strong>`)
+
+  const hours = props.opening_hours
+  if (hours) lines.push(`Godziny: <strong>${hours}</strong>`)
+
+  const phone = props.phone || props['contact:phone']
+  if (phone) lines.push(`Telefon: <strong>${phone}</strong>`)
+
+  const vhf = props['communication:radio'] || props['seamark:vhf_channel']
+  if (vhf) lines.push(`VHF: <strong>kanał ${vhf}</strong>`)
+
+  const operator = props.operator
+  if (operator) lines.push(`Operator: <strong>${operator}</strong>`)
+
+  return `<div class="seamark-popup">
+    <div class="seamark-popup-title">${name}</div>
+    <div class="seamark-popup-type">Stacja paliw dla łodzi</div>
+    ${lines.length ? `<div class="seamark-popup-details">${lines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
+  </div>`
+}
+
 function buildPopupHTML(props) {
   const name = props.name || props['seamark:name'] || ''
   const type = translateType(props['seamark:type'])
@@ -260,7 +343,7 @@ function buildAreaPopupHTML(props) {
   </div>`
 }
 
-export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamarksVisible, seamarksData }) {
+export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamarksVisible, seamarksData, fuelVisible, fuelData }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const isMeasuringRef = useRef(isMeasuring)
@@ -392,7 +475,7 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
       // Seamark / lock area popup
       map.on('click', 'seamarks-areas-fill', e => {
         if (isMeasuringRef.current) return
-        if (map.queryRenderedFeatures(e.point, { layers: ['seamarks-points'] }).length > 0) return
+        if (map.queryRenderedFeatures(e.point, { layers: ['seamarks-points', 'fuel-points'] }).length > 0) return
         const feature = e.features[0]
         if (feature.properties._featureType === 'lock') {
           new mapboxgl.Popup({ maxWidth: '320px', closeButton: false, className: 'seamark-point-popup' })
@@ -411,6 +494,43 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
         map.getCanvas().style.cursor = 'pointer'
       })
       map.on('mouseleave', 'seamarks-areas-fill', () => {
+        map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
+      })
+
+      // ── Fuel stations ────────────────────────────────────────────
+      map.addImage('fuel-icon', makeFuelIcon())
+
+      map.addSource('fuel', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+
+      map.addLayer({
+        id: 'fuel-points',
+        type: 'symbol',
+        source: 'fuel',
+        layout: {
+          visibility: 'none',
+          'icon-image': 'fuel-icon',
+          'icon-size': 1,
+          'icon-allow-overlap': true,
+          'icon-anchor': 'center',
+        },
+      })
+
+      map.on('click', 'fuel-points', e => {
+        if (isMeasuringRef.current) return
+        const feature = e.features[0]
+        new mapboxgl.Popup({ maxWidth: '320px', closeButton: false, className: 'seamark-point-popup' })
+          .setLngLat(feature.geometry.coordinates.slice())
+          .setHTML(buildFuelPopupHTML(feature.properties))
+          .addTo(map)
+      })
+
+      map.on('mouseenter', 'fuel-points', () => {
+        map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', 'fuel-points', () => {
         map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
       })
 
@@ -493,6 +613,18 @@ export default function MapView({ isMeasuring, measurePoints, onAddPoint, seamar
     }
     map.isStyleLoaded() ? update() : map.once('load', update)
   }, [seamarksVisible, seamarksData])
+
+  // Fuel data + visibility
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const update = () => {
+      if (fuelData) map.getSource('fuel')?.setData(fuelData)
+      const vis = fuelVisible && fuelData ? 'visible' : 'none'
+      if (map.getLayer('fuel-points')) map.setLayoutProperty('fuel-points', 'visibility', vis)
+    }
+    map.isStyleLoaded() ? update() : map.once('load', update)
+  }, [fuelVisible, fuelData])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

@@ -4,7 +4,7 @@ import './Sidebar.css'
 const NAV_ITEMS = [
   { id: 'measure', label: 'Pomiar', Icon: RulerIcon, kind: 'tool' },
   { id: 'seamarks', label: 'Znaki nawigacyjne', Icon: SeamarksIcon, kind: 'layer' },
-  { id: 'waypoints', label: 'Punkty trasy', Icon: AnchorIcon, kind: 'tool' },
+  { id: 'fuel', label: 'Stacje paliw', Icon: FuelStationIcon, kind: 'layer' },
   { id: 'settings', label: 'Ustawienia', Icon: SettingsIcon, kind: 'tool' },
 ]
 
@@ -26,6 +26,8 @@ export default function Sidebar({
   seamarksError,
   seamarksInfo,
   onRefreshSeamarks,
+  fuelLoading,
+  fuelError,
   savedMeasurements,
   editingId,
   onLoadMeasurement,
@@ -69,12 +71,14 @@ export default function Sidebar({
                 {item.kind === 'layer' && (
                   <span className={`sidebar-layer-dot${visibleLayers[item.id] ? ' sidebar-layer-dot--on' : ''}`} />
                 )}
-                {item.id === 'seamarks' && seamarksLoading && (
-                  <span className="sidebar-spinner" />
-                )}
+                {item.id === 'seamarks' && seamarksLoading && <span className="sidebar-spinner" />}
+                {item.id === 'fuel' && fuelLoading && <span className="sidebar-spinner" />}
               </button>
               {item.id === 'seamarks' && seamarksError && isActive(item) && (
                 <p className="sidebar-error">{seamarksError}</p>
+              )}
+              {item.id === 'fuel' && fuelError && isActive(item) && (
+                <p className="sidebar-error">{fuelError}</p>
               )}
             </li>
           ))}
@@ -168,13 +172,15 @@ function RulerIcon() {
   )
 }
 
-function AnchorIcon() {
+function FuelStationIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="5" r="3" />
-      <line x1="12" y1="8" x2="12" y2="22" />
-      <path d="M5 15H2a10 10 0 0 0 20 0h-3" />
-      <line x1="8" y1="8" x2="16" y2="8" />
+      <path d="M3 22V8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v14" />
+      <line x1="1" y1="22" x2="15" y2="22" />
+      <rect x="5" y="10" width="8" height="5" rx="0.5" />
+      <path d="M15 12h3" />
+      <path d="M18 12v7" />
+      <path d="M18 19l-2 2" />
     </svg>
   )
 }

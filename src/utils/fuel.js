@@ -18,8 +18,6 @@ const OVERPASS_QUERY = `[out:json][timeout:30];
   way["seamark:small_craft_facility:category"~"fuel_station"](${BBOX});
   way["amenity"="fuel"]["motorboat"](${BBOX});
   way["amenity"="fuel"]["boat"](${BBOX});
-  node["amenity"="fuel"]["name"~"marina|lotos|orlen|mol|pali",i](${BBOX});
-  way["amenity"="fuel"]["name"~"marina|lotos|orlen|mol|pali",i](${BBOX});
 );
 out center;`
 

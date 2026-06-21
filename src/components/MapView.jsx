@@ -81,6 +81,9 @@ function buildFuelPopupHTML(props) {
   const operator = props.operator
   if (operator) lines.push(`Operator: <strong>${operator}</strong>`)
 
+  const source = props._source
+  if (source) lines.push(`Źródło: <strong>${source}</strong>`)
+
   return `<div class="seamark-popup">
     <div class="seamark-popup-title">${name}</div>
     <div class="seamark-popup-type">Stacja paliw dla łodzi</div>

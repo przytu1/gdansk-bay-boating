@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { translateType, translateColour, translateCardinal, translateLateral } from '../utils/translations'
+import { SHIP_CATEGORIES } from '../utils/aisStream'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
@@ -178,6 +179,79 @@ function makeFuelIcon() {
 
   // Return ImageData — explicitly supported by Mapbox addImage on all platforms
   return ctx.getImageData(0, 0, size, size)
+}
+
+// Ship-shaped marker (pentagon hull with a pointed bow), drawn pointing north
+// so Mapbox `icon-rotate` aligns it with course/heading. One per category colour.
+function makeVesselIcon(color) {
+  const size = 40
+  const c = document.createElement('canvas')
+  c.width = size
+  c.height = size
+  const ctx = c.getContext('2d')
+
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'
+  ctx.shadowBlur = 3
+  ctx.shadowOffsetY = 1
+
+  ctx.beginPath()
+  ctx.moveTo(20, 3)    // bow tip
+  ctx.lineTo(31, 16)   // starboard shoulder
+  ctx.lineTo(29, 37)   // starboard stern
+  ctx.lineTo(11, 37)   // port stern
+  ctx.lineTo(9, 16)    // port shoulder
+  ctx.closePath()
+
+  ctx.fillStyle = color
+  ctx.fill()
+
+  ctx.shadowBlur = 0
+  ctx.shadowOffsetY = 0
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 2
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+
+  return ctx.getImageData(0, 0, size, size)
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"]/g, ch => (
+    ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : '&quot;'
+  ))
+}
+
+function buildVesselPopupHTML(props) {
+  const name = props.name ? escapeHTML(props.name) : `MMSI ${escapeHTML(props.mmsi)}`
+  const typeLabel = props.typeLabel
+    ? escapeHTML(props.typeLabel) + (props.typeCode ? ` (typ ${props.typeCode})` : '')
+    : 'Jednostka pływająca'
+  const lines = []
+
+  lines.push(`MMSI: <strong>${escapeHTML(props.mmsi)}</strong>`)
+  if (props.navStatus) lines.push(`Status: <strong>${escapeHTML(props.navStatus)}</strong>`)
+  if (props.sog != null) lines.push(`Prędkość: <strong>${Number(props.sog).toFixed(1)} kn</strong>`)
+  if (props.cog != null) lines.push(`Kurs (COG): <strong>${Math.round(props.cog)}°</strong>`)
+  if (props.heading != null) lines.push(`Dziób (HDG): <strong>${Math.round(props.heading)}°</strong>`)
+  if (props.destination) lines.push(`Cel podróży: <strong>${escapeHTML(props.destination)}</strong>`)
+  if (props.lengthM || props.widthM) {
+    const dims = [props.lengthM ? `${props.lengthM} m dł.` : null, props.widthM ? `${props.widthM} m szer.` : null]
+      .filter(Boolean).join(' × ')
+    lines.push(`Wymiary: <strong>${dims}</strong>`)
+  }
+  if (props.draught != null) lines.push(`Zanurzenie: <strong>${Number(props.draught).toFixed(1)} m</strong>`)
+  if (props.callSign) lines.push(`Sygnał wywoławczy: <strong>${escapeHTML(props.callSign)}</strong>`)
+  if (props.imo) lines.push(`IMO: <strong>${escapeHTML(props.imo)}</strong>`)
+  if (props.lastSeen) {
+    const t = new Date(props.lastSeen).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    lines.push(`Ostatni sygnał: <strong>${t}</strong>`)
+  }
+
+  return `<div class="seamark-popup">
+    <div class="seamark-popup-title">${name}</div>
+    <div class="seamark-popup-type">${typeLabel}</div>
+    <div class="seamark-popup-details">${lines.map(l => `<div>${l}</div>`).join('')}</div>
+  </div>`
 }
 
 function buildFuelPopupHTML(props) {
@@ -477,6 +551,7 @@ export default function MapView({
   fuelVisible, fuelData, isPlacingFuel, onPlaceFuelPoint,
   marinasVisible, marinasData, isPlacingMarina, onPlaceMarinaPoint,
   locksVisible, locksData, isPlacingLock, onPlaceLockPoint,
+  vesselsVisible, vesselsData,
   isCoords, coordPoint, onCoordPoint,
 }) {
   const containerRef = useRef(null)
@@ -759,6 +834,59 @@ export default function MapView({
         map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
       })
 
+      // ── Live vessel positions (AIS) ─────────────────────────────
+      Object.entries(SHIP_CATEGORIES).forEach(([cat, { color }]) => {
+        map.addImage(`vessel-${cat}`, makeVesselIcon(color))
+      })
+
+      map.addSource('vessels', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+        attribution: 'Pozycje AIS © <a href="https://aisstream.io/">AISStream.io</a>',
+      })
+
+      map.addLayer({
+        id: 'vessel-points',
+        type: 'symbol',
+        source: 'vessels',
+        layout: {
+          visibility: 'none',
+          'icon-image': ['get', 'iconKey'],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.55, 14, 0.9],
+          'icon-rotate': ['get', 'rotation'],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true,
+          'icon-anchor': 'center',
+          'text-field': ['get', 'name'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 11, 0, 12.5, 11],
+          'text-offset': [0, 1.4],
+          'text-anchor': 'top',
+          'text-optional': true,
+          'text-allow-overlap': false,
+        },
+        paint: {
+          'text-color': '#1a202c',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 1.5,
+        },
+      })
+
+      map.on('click', 'vessel-points', e => {
+        if (isMeasuringRef.current || isPlacingFuelRef.current || isPlacingMarinaRef.current || isPlacingLockRef.current) return
+        const feature = e.features[0]
+        new mapboxgl.Popup({ maxWidth: '320px', closeButton: false, className: 'seamark-point-popup' })
+          .setLngLat(feature.geometry.coordinates.slice())
+          .setHTML(buildVesselPopupHTML(feature.properties))
+          .addTo(map)
+      })
+
+      map.on('mouseenter', 'vessel-points', () => {
+        map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', 'vessel-points', () => {
+        map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
+      })
+
       // ── Coord point marker ──────────────────────────────────────
       map.addSource('coord-point', {
         type: 'geojson',
@@ -905,6 +1033,15 @@ export default function MapView({
     const vis = locksVisible ? 'visible' : 'none'
     if (map.getLayer('lock-points')) map.setLayoutProperty('lock-points', 'visibility', vis)
   }, [locksVisible, locksData])
+
+  // Live vessel positions data + visibility
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (vesselsData) map.getSource('vessels')?.setData(vesselsData)
+    const vis = vesselsVisible ? 'visible' : 'none'
+    if (map.getLayer('vessel-points')) map.setLayoutProperty('vessel-points', 'visibility', vis)
+  }, [vesselsVisible, vesselsData])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

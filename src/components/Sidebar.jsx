@@ -7,9 +7,42 @@ const NAV_ITEMS = [
   { id: 'seamarks', label: 'Znaki nawigacyjne', Icon: SeamarksIcon, kind: 'layer' },
   { id: 'marinas', label: 'Mariny i przystanie', Icon: MarinaIcon, kind: 'layer' },
   { id: 'locks', label: 'Śluzy i mosty zwodzone', Icon: LockIcon, kind: 'layer' },
+  { id: 'ships', label: 'Pozycje statków', Icon: ShipIcon, kind: 'layer' },
   { id: 'fuel', label: 'Stacje paliw', Icon: FuelStationIcon, kind: 'layer' },
   { id: 'settings', label: 'Ustawienia', Icon: SettingsIcon, kind: 'tool' },
 ]
+
+function formatTime(ts) {
+  return new Date(ts).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function formatDuration(ms) {
+  const s = Math.max(0, Math.round(ms / 1000))
+  const m = Math.floor(s / 60)
+  return m > 0 ? `${m}:${String(s % 60).padStart(2, '0')} min` : `${s} s`
+}
+
+function aisStatusLabel(status, prevLoadMs) {
+  switch (status.state) {
+    case 'connecting': return 'Łączenie z serwisem AIS…'
+    case 'reconnecting': return 'Ponowne łączenie z serwisem AIS…'
+    case 'loading': {
+      const lines = ['Trwa pierwsze pobranie pełnej listy statków…']
+      lines.push(`Pobrano dotąd: ${status.count ?? 0} jednostek`)
+      let t = `Czas: ${status.loadStart ? formatDuration(Date.now() - status.loadStart) : '0 s'}`
+      if (prevLoadMs) t += ` (poprzednio: ${formatDuration(prevLoadMs)})`
+      lines.push(t)
+      return lines.join('\n')
+    }
+    case 'connected': {
+      let s = `Na żywo · ${status.count ?? 0} jednostek w zasięgu`
+      if (status.lastUpdate) s += `\nOstatnia aktualizacja: ${formatTime(status.lastUpdate)}`
+      if (status.loadDurationMs) s += `\nPełne pobranie zajęło: ${formatDuration(status.loadDurationMs)}`
+      return s
+    }
+    default: return ''
+  }
+}
 
 function formatCacheDate(ts) {
   return new Date(ts).toLocaleString('pl-PL', {
@@ -29,6 +62,9 @@ export default function Sidebar({
   seamarksError,
   seamarksInfo,
   onRefreshSeamarks,
+  aisStatus,
+  aisPrevLoadDuration,
+  onRefreshAis,
   customFuelStations,
   builtInFuelCount,
   onStartPlaceFuel,
@@ -87,9 +123,27 @@ export default function Sidebar({
                   </span>
                 )}
                 {item.id === 'seamarks' && seamarksLoading && <span className="sidebar-spinner" />}
+                {item.id === 'ships' && aisStatus && (aisStatus.state === 'connecting' || aisStatus.state === 'reconnecting' || aisStatus.state === 'loading') && <span className="sidebar-spinner" />}
               </button>
               {item.id === 'seamarks' && seamarksError && isActive(item) && (
                 <p className="sidebar-error">{seamarksError}</p>
+              )}
+              {item.id === 'ships' && isActive(item) && aisStatus && aisStatus.state === 'error' && (
+                <p className="sidebar-error">{aisStatus.message}</p>
+              )}
+              {item.id === 'ships' && isActive(item) && aisStatus && aisStatus.state !== 'error' && (
+                <div className="sidebar-ais-status">
+                  <p className="sidebar-status">{aisStatusLabel(aisStatus, aisPrevLoadDuration)}</p>
+                  <button
+                    className="sidebar-ais-refresh"
+                    onClick={onRefreshAis}
+                    disabled={aisStatus.state === 'connecting' || aisStatus.state === 'reconnecting'}
+                    aria-label="Odśwież pozycje statków"
+                    title="Odśwież pozycje statków"
+                  >
+                    <RefreshIcon />
+                  </button>
+                </div>
               )}
             </li>
           ))}
@@ -308,6 +362,29 @@ function LockIcon() {
       <path d="M7 9 L12 12 L7 15" />
       <path d="M17 9 L12 12 L17 15" />
       <line x1="2" y1="21" x2="22" y2="21" />
+    </svg>
+  )
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 2v6h-6" />
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+      <path d="M3 22v-6h6" />
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+    </svg>
+  )
+}
+
+function ShipIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 14h18l-2 6a1 1 0 0 1-1 .7H6a1 1 0 0 1-1-.7Z" />
+      <path d="M12 14V4" />
+      <path d="M12 4l5 3-5 2-5-2Z" />
+      <path d="M5 14V9" />
+      <path d="M19 14V9" />
     </svg>
   )
 }

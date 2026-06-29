@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import Sidebar from './components/Sidebar'
 import MapView from './components/MapView'
 import DistanceBar from './components/DistanceBar'
@@ -8,8 +8,10 @@ import { fetchSeamarks, getSeamarksCacheInfo, clearSeamarksCache } from './utils
 import { BUILT_IN_FUEL_STATIONS, loadCustomFuelStations, saveCustomFuelStations, stationsToGeoJSON } from './utils/customFuel'
 import { BUILT_IN_MARINAS, loadUserMarinas, saveUserMarinas, marinasToGeoJSON } from './utils/customMarinas'
 import { BUILT_IN_LOCKS, loadUserLocks, saveUserLocks, locksToGeoJSON } from './utils/customLocks'
+import { createAisStream } from './utils/aisStream'
 
 const STORAGE_KEY = 'bay-nav-measurements'
+const AIS_LOAD_KEY = 'bay-nav-ais-last-load-ms'
 
 function loadSaved() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
@@ -28,7 +30,7 @@ export default function App() {
   const [savedMeasurements, setSavedMeasurements] = useState(loadSaved)
 
   // Layer toggles (independent)
-  const [visibleLayers, setVisibleLayers] = useState({ seamarks: false, fuel: false, marinas: false, locks: false })
+  const [visibleLayers, setVisibleLayers] = useState({ seamarks: false, fuel: false, marinas: false, locks: false, ships: false })
   const [customFuelStations, setCustomFuelStations] = useState(loadCustomFuelStations)
   const [isPlacingFuel, setIsPlacingFuel] = useState(false)
   const [pendingFuelPoint, setPendingFuelPoint] = useState(null)
@@ -42,6 +44,17 @@ export default function App() {
   const [seamarksLoading, setSeamarksLoading] = useState(false)
   const [seamarksError, setSeamarksError] = useState(null)
   const [seamarksInfo, setSeamarksInfo] = useState(getSeamarksCacheInfo)
+
+  // Live vessel positions (AIS)
+  const [vesselsData, setVesselsData] = useState({ type: 'FeatureCollection', features: [] })
+  const [aisStatus, setAisStatus] = useState(null)
+  const [aisNonce, setAisNonce] = useState(0)
+  const [, setAisTick] = useState(0)
+  const [prevLoadDuration, setPrevLoadDuration] = useState(() => {
+    const v = localStorage.getItem(AIS_LOAD_KEY)
+    return v ? Number(v) : null
+  })
+  const aisStreamRef = useRef(null)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedMeasurements))
@@ -74,6 +87,55 @@ export default function App() {
       .then(data => { setSeamarksData(data); setSeamarksLoading(false) })
       .catch(() => { setSeamarksError('Nie udało się załadować znaków nawigacyjnych. Sprawdź połączenie.'); setSeamarksLoading(false) })
   }, [visibleLayers.seamarks, seamarksData])
+
+  // Open/close the AIS WebSocket stream when the ships layer is toggled
+  useEffect(() => {
+    if (!visibleLayers.ships) {
+      setAisStatus(null)
+      return
+    }
+    const apiKey = import.meta.env.VITE_AISSTREAM_TOKEN
+    if (!apiKey) {
+      setAisStatus({
+        state: 'error',
+        message: 'Brak klucza API. Dodaj VITE_AISSTREAM_TOKEN do pliku .env (darmowy klucz: aisstream.io), a następnie zrestartuj aplikację.',
+      })
+      return
+    }
+    setVesselsData({ type: 'FeatureCollection', features: [] })
+    setAisStatus({ state: 'connecting' })
+    const stream = createAisStream({
+      apiKey,
+      onData: setVesselsData,
+      onStatus: st => setAisStatus(prev => (prev && prev.state === 'error' && !st.state)
+        ? prev
+        : { ...(prev || {}), ...st }),
+    })
+    aisStreamRef.current = stream
+    stream.start()
+    return () => { stream.stop(); aisStreamRef.current = null }
+  }, [visibleLayers.ships, aisNonce])
+
+  // Keep the loading stopwatch ticking once per second while buffering.
+  useEffect(() => {
+    if (aisStatus?.state !== 'loading') return
+    const id = setInterval(() => setAisTick(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [aisStatus?.state])
+
+  // Persist how long the last full load took, so the next one can show it.
+  useEffect(() => {
+    if (aisStatus?.loadDurationMs) {
+      localStorage.setItem(AIS_LOAD_KEY, String(aisStatus.loadDurationMs))
+      setPrevLoadDuration(aisStatus.loadDurationMs)
+    }
+  }, [aisStatus?.loadDurationMs])
+
+  function handleRefreshAis() {
+    setVesselsData({ type: 'FeatureCollection', features: [] })
+    setAisStatus({ state: 'connecting' })
+    setAisNonce(n => n + 1)
+  }
 
   function handleStartPlaceFuel() {
     setMenuOpen(false)
@@ -272,6 +334,9 @@ export default function App() {
         seamarksError={seamarksError}
         seamarksInfo={seamarksInfo}
         onRefreshSeamarks={handleRefreshSeamarks}
+        aisStatus={aisStatus}
+        aisPrevLoadDuration={prevLoadDuration}
+        onRefreshAis={handleRefreshAis}
         customFuelStations={customFuelStations}
         builtInFuelCount={BUILT_IN_FUEL_STATIONS.length}
         onStartPlaceFuel={handleStartPlaceFuel}
@@ -308,6 +373,8 @@ export default function App() {
           locksData={locksData}
           isPlacingLock={isPlacingLock}
           onPlaceLockPoint={handleMapLockPoint}
+          vesselsVisible={visibleLayers.ships}
+          vesselsData={vesselsData}
           isCoords={activeTool === 'coords'}
           coordPoint={coordPoint}
           onCoordPoint={setCoordPoint}

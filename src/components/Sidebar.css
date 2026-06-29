@@ -117,6 +117,48 @@
   font-family: system-ui, sans-serif;
 }
 
+.sidebar-status {
+  font-size: 11px;
+  color: var(--accent);
+  padding: 2px 12px 6px;
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  white-space: pre-line;
+  line-height: 1.4;
+}
+
+.sidebar-ais-status {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.sidebar-ais-refresh {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin: 2px 10px 0 0;
+  padding: 0;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.sidebar-ais-refresh:hover:not(:disabled) {
+  background: var(--sidebar-hover);
+}
+
+.sidebar-ais-refresh:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .sidebar-nav-btn:hover {
   background: var(--sidebar-hover);
   color: var(--accent);

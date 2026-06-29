@@ -16,6 +16,27 @@ const MAX_RETRY_DELAY = 30 * 1000
 // so this lets the inflow settle before revealing everything at once.
 const ROUND_MS = 5000
 const SETTLE_ROUNDS = 2
+const MAX_LOAD_MS = 2 * 60 * 1000   // cap the initial load; reveal vessels after this
+// Cache the last picture so the next launch can show vessels instantly and
+// refresh them live, instead of waiting through the initial-load phase.
+const CACHE_KEY = 'bay-nav-ais-cache-v1'
+const CACHE_TTL = 60 * 60 * 1000   // ignore cached positions older than 1 h
+const CACHE_WRITE_MS = 10 * 1000   // throttle cache writes while live
+
+function readAisCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY))
+    if (!c || !Array.isArray(c.vessels) || !c.vessels.length) return null
+    if (Date.now() - c.ts > CACHE_TTL) return null
+    return c
+  } catch {
+    return null
+  }
+}
+
+export function clearAisCache() {
+  try { localStorage.removeItem(CACHE_KEY) } catch {}
+}
 
 // ── Ship type categories (AIS "Type of ship and cargo", 0–99) ───────────────
 // category drives the marker colour; label is shown in the popup.
@@ -93,6 +114,7 @@ export function createAisStream({ apiKey, onData, onStatus }) {
   let flushTimer = null
   let pruneTimer = null
   let roundTimer = null
+  let loadTimeout = null
   let reconnectTimer = null
   let retry = 0
   let stopped = false
@@ -102,6 +124,7 @@ export function createAisStream({ apiKey, onData, onStatus }) {
   let loadStart = 0
   let lastRoundCount = 0
   let noNewRounds = 0
+  let lastCacheWrite = 0
 
   // Number of vessels with a usable position (used both for the snapshot and
   // for the settle-detection round counter).
@@ -149,7 +172,7 @@ export function createAisStream({ apiKey, onData, onStatus }) {
           imo: v.imo || null,
           lengthM: v.length || null,
           widthM: v.width || null,
-          lastSeen: v.lastSeen,
+          lastSeen: v.observedAt ?? v.lastSeen,
         },
       })
     }
@@ -162,10 +185,30 @@ export function createAisStream({ apiKey, onData, onStatus }) {
     if (loaded) {
       const fc = snapshot()
       onData(fc)
-      onStatus?.({ state: 'connected', count: fc.features.length, lastUpdate: Date.now() })
+      onStatus?.({ state: 'connected', count: fc.features.length, lastUpdate: Date.now(), fromCache: false })
+      maybeWriteCache()
     } else {
       onStatus?.({ state: 'loading', count: positionedCount(), loadStart })
     }
+  }
+
+  // Persist the current vessels so the next launch can seed from them.
+  function writeCache() {
+    try {
+      const now = Date.now()
+      const arr = []
+      for (const v of vessels.values()) {
+        if (now - v.lastSeen > STALE_MS) continue
+        if (typeof v.lat !== 'number' || typeof v.lng !== 'number') continue
+        arr.push(v)
+      }
+      if (arr.length) localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: now, vessels: arr }))
+      lastCacheWrite = now
+    } catch {}
+  }
+
+  function maybeWriteCache() {
+    if (Date.now() - lastCacheWrite > CACHE_WRITE_MS) writeCache()
   }
 
   function scheduleFlush() {
@@ -189,6 +232,7 @@ export function createAisStream({ apiKey, onData, onStatus }) {
     if (loaded) return
     loaded = true
     if (roundTimer) { clearInterval(roundTimer); roundTimer = null }
+    if (loadTimeout) { clearTimeout(loadTimeout); loadTimeout = null }
     const fc = snapshot()
     onData(fc)
     onStatus?.({
@@ -197,6 +241,7 @@ export function createAisStream({ apiKey, onData, onStatus }) {
       lastUpdate: Date.now(),
       loadDurationMs: Date.now() - loadStart,
     })
+    writeCache()
     pruneTimer = setInterval(publish, PRUNE_MS)
   }
 
@@ -217,6 +262,7 @@ export function createAisStream({ apiKey, onData, onStatus }) {
     const key = String(mmsi)
     const v = vessels.get(key) || { mmsi: key }
     v.lastSeen = Date.now()
+    v.observedAt = v.lastSeen
 
     if (meta.ShipName && meta.ShipName.trim()) v.name = meta.ShipName.trim()
     if (typeof meta.latitude === 'number') { v.lat = meta.latitude; v.lng = meta.longitude }
@@ -289,23 +335,43 @@ export function createAisStream({ apiKey, onData, onStatus }) {
     reconnectTimer = setTimeout(() => { reconnectTimer = null; connect() }, delay)
   }
 
-  function start() {
+  function start(useCache = true) {
     stopped = false
     loaded = false
     loadStart = Date.now()
     lastRoundCount = 0
     noNewRounds = 0
-    // Prune timer is started only once the initial load completes.
-    roundTimer = setInterval(checkRound, ROUND_MS)
+    lastCacheWrite = 0
+
+    const cached = useCache ? readAisCache() : null
+    if (cached) {
+      // Seed from cache: show positions immediately and refresh them live,
+      // skipping the initial-load buffer entirely.
+      const now = Date.now()
+      for (const v of cached.vessels) {
+        if (v && v.mmsi != null) vessels.set(String(v.mmsi), { ...v, lastSeen: now })
+      }
+      loaded = true
+      const fc = snapshot()
+      onData(fc)
+      onStatus?.({ state: 'connected', count: fc.features.length, lastUpdate: cached.ts, fromCache: true })
+      pruneTimer = setInterval(publish, PRUNE_MS)
+    } else {
+      // No usable cache — run the settle-detection initial load, but cap it.
+      roundTimer = setInterval(checkRound, ROUND_MS)
+      loadTimeout = setTimeout(finishLoading, MAX_LOAD_MS)
+    }
     connect()
   }
 
   function stop() {
     stopped = true
+    writeCache()
     if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
     if (pruneTimer) { clearInterval(pruneTimer); pruneTimer = null }
     if (roundTimer) { clearInterval(roundTimer); roundTimer = null }
+    if (loadTimeout) { clearTimeout(loadTimeout); loadTimeout = null }
     if (ws) {
       ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null
       try { ws.close() } catch {}

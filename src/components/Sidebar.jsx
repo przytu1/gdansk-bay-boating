@@ -35,7 +35,9 @@ function aisStatusLabel(status, prevLoadMs) {
       return lines.join('\n')
     }
     case 'connected': {
-      let s = `Na żywo · ${status.count ?? 0} jednostek w zasięgu`
+      let s = status.fromCache
+        ? `Z pamięci · ${status.count ?? 0} jednostek · odświeżanie…`
+        : `Na żywo · ${status.count ?? 0} jednostek w zasięgu`
       if (status.lastUpdate) s += `\nOstatnia aktualizacja: ${formatTime(status.lastUpdate)}`
       if (status.loadDurationMs) s += `\nPełne pobranie zajęło: ${formatDuration(status.loadDurationMs)}`
       return s

@@ -55,6 +55,7 @@ export default function App() {
     return v ? Number(v) : null
   })
   const aisStreamRef = useRef(null)
+  const aisForceFreshRef = useRef(false)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedMeasurements))
@@ -112,7 +113,9 @@ export default function App() {
         : { ...(prev || {}), ...st }),
     })
     aisStreamRef.current = stream
-    stream.start()
+    const useCache = !aisForceFreshRef.current
+    aisForceFreshRef.current = false
+    stream.start(useCache)
     return () => { stream.stop(); aisStreamRef.current = null }
   }, [visibleLayers.ships, aisNonce])
 
@@ -132,6 +135,7 @@ export default function App() {
   }, [aisStatus?.loadDurationMs])
 
   function handleRefreshAis() {
+    aisForceFreshRef.current = true
     setVesselsData({ type: 'FeatureCollection', features: [] })
     setAisStatus({ state: 'connecting' })
     setAisNonce(n => n + 1)

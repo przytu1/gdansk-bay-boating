@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { translateType, translateColour, translateCardinal, translateLateral } from '../utils/translations'
 import { SHIP_CATEGORIES } from '../utils/aisStream'
+import { fmtTime } from '../utils/eta'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
@@ -70,6 +71,72 @@ function makeMarinaIcon() {
   ctx.stroke()
 
   // Arm tips
+  ctx.beginPath()
+  ctx.arc(cx - 12, 27, 3.5, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.beginPath()
+  ctx.arc(cx + 12, 27, 3.5, 0, Math.PI * 2)
+  ctx.fill()
+
+  return ctx.getImageData(0, 0, size, size)
+}
+
+function makeStopIcon() {
+  const size = 44
+  const c = document.createElement('canvas')
+  c.width = size
+  c.height = size
+  const ctx = c.getContext('2d')
+
+  ctx.shadowColor = 'rgba(0,0,0,0.32)'
+  ctx.shadowBlur = 4
+  ctx.shadowOffsetY = 2
+
+  // White background
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, size, size)
+  ctx.shadowBlur = 0
+  ctx.shadowOffsetY = 0
+
+  // Black border
+  ctx.strokeStyle = '#000000'
+  ctx.lineWidth = 2.5
+  ctx.strokeRect(1.25, 1.25, size - 2.5, size - 2.5)
+
+  // Anchor symbol (black)
+  ctx.strokeStyle = '#000000'
+  ctx.fillStyle = '#000000'
+  ctx.lineWidth = 3.5
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  const cx = 22
+
+  ctx.beginPath()
+  ctx.arc(cx, 10, 5, 0, Math.PI * 2)
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.moveTo(cx, 10)
+  ctx.lineTo(cx, 37)
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.moveTo(cx - 10, 20)
+  ctx.lineTo(cx + 10, 20)
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.moveTo(cx, 37)
+  ctx.bezierCurveTo(cx - 4, 37, cx - 12, 34, cx - 12, 27)
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.moveTo(cx, 37)
+  ctx.bezierCurveTo(cx + 4, 37, cx + 12, 34, cx + 12, 27)
+  ctx.stroke()
+
   ctx.beginPath()
   ctx.arc(cx - 12, 27, 3.5, 0, Math.PI * 2)
   ctx.fill()
@@ -263,6 +330,16 @@ function buildFuelPopupHTML(props) {
     <div class="seamark-popup-title">${name}</div>
     <div class="seamark-popup-type">Stacja paliw dla łodzi</div>
     ${infoLines.length ? `<div class="seamark-popup-details">${infoLines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
+  </div>`
+}
+
+function buildMeasurePointPopupHTML(props) {
+  const name = (props && props.name) ? escapeHTML(props.name) : 'Punkt trasy'
+  const timeLabel = (props && props.timeLabel) ? escapeHTML(props.timeLabel) : ''
+
+  return `<div class="seamark-popup">
+    <div class="seamark-popup-title">${name}</div>
+    ${timeLabel ? `<div class="seamark-popup-type">${timeLabel}</div>` : ''}
   </div>`
 }
 
@@ -546,13 +623,14 @@ function buildAreaPopupHTML(props) {
 }
 
 export default function MapView({
-  isMeasuring, measurePoints, onAddPoint,
+  isMeasuring, measurePoints, measureEtas, onAddPoint,
   seamarksVisible, seamarksData,
   fuelVisible, fuelData, isPlacingFuel, onPlaceFuelPoint,
   marinasVisible, marinasData, isPlacingMarina, onPlaceMarinaPoint,
   locksVisible, locksData, isPlacingLock, onPlaceLockPoint,
   vesselsVisible, vesselsData,
   isCoords, coordPoint, onCoordPoint,
+  locationHistoryVisible, locationHistoryPoints,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
@@ -588,18 +666,19 @@ export default function MapView({
       zoom: 11,
     })
 
-    map.addControl(
-      new mapboxgl.GeolocateControl({
-        positionOptions: { enableHighAccuracy: true },
-        trackUserLocation: true,
-        showUserHeading: true,
-      }),
-      'top-right'
-    )
+    const geolocateControl = new mapboxgl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+      showUserHeading: true,
+    })
+    map.addControl(geolocateControl, 'top-right')
     map.addControl(new mapboxgl.NavigationControl(), 'top-right')
     map.addControl(new mapboxgl.ScaleControl({ unit: 'nautical' }), 'bottom-left')
 
     map.on('load', () => {
+      // Auto-activate GPS tracking so the user's position is visible immediately
+      setTimeout(() => geolocateControl.trigger(), 500)
+
       // ── Seamarks ────────────────────────────────────────────────
       map.addSource('seamarks', {
         type: 'geojson',
@@ -924,6 +1003,73 @@ export default function MapView({
         id: 'measure-points',
         type: 'circle',
         source: 'measure-points',
+        filter: ['!=', ['get', 'type'], 'stop'],
+        paint: {
+          'circle-radius': 5,
+          'circle-color': '#e53e3e',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+        },
+      })
+
+      map.addImage('stop-icon', makeStopIcon())
+      map.addLayer({
+        id: 'measure-stops',
+        type: 'symbol',
+        source: 'measure-points',
+        filter: ['==', ['get', 'type'], 'stop'],
+        layout: {
+          'icon-image': 'stop-icon',
+          'icon-size': 0.5,
+          'icon-allow-overlap': true,
+          'icon-anchor': 'center',
+        },
+      })
+
+      map.on('click', 'measure-points', e => {
+        const feature = e.features[0]
+        new mapboxgl.Popup({ maxWidth: '260px', closeButton: false, className: 'seamark-point-popup' })
+          .setLngLat(feature.geometry.coordinates.slice())
+          .setHTML(buildMeasurePointPopupHTML(feature.properties))
+          .addTo(map)
+      })
+      map.on('mouseenter', 'measure-points', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', 'measure-points', () => {
+        map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
+      })
+
+      map.on('click', 'measure-stops', e => {
+        const feature = e.features[0]
+        new mapboxgl.Popup({ maxWidth: '260px', closeButton: false, className: 'seamark-point-popup' })
+          .setLngLat(feature.geometry.coordinates.slice())
+          .setHTML(buildMeasurePointPopupHTML(feature.properties))
+          .addTo(map)
+      })
+      map.on('mouseenter', 'measure-stops', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', 'measure-stops', () => {
+        map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
+      })
+
+      // ── Location history layers ──────────────────────────────────
+      map.addSource('location-history-line', {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } },
+      })
+      map.addLayer({
+        id: 'location-history-line',
+        type: 'line',
+        source: 'location-history-line',
+        paint: { 'line-color': '#e53e3e', 'line-width': 2.5 },
+      })
+
+      map.addSource('location-history-points', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      map.addLayer({
+        id: 'location-history-points',
+        type: 'circle',
+        source: 'location-history-points',
         paint: {
           'circle-radius': 5,
           'circle-color': '#e53e3e',
@@ -952,9 +1098,9 @@ export default function MapView({
         return
       }
       if (!isMeasuringRef.current) return
-      const hit = map.queryRenderedFeatures(e.point, { layers: ['seamarks-points'] })
+      const hit = map.queryRenderedFeatures(e.point, { layers: ['seamarks-points', 'measure-points', 'measure-stops'] })
       if (hit.length > 0) return
-      onAddPointRef.current([e.lngLat.lng, e.lngLat.lat])
+      onAddPointRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat })
     })
 
     mapRef.current = map
@@ -973,16 +1119,25 @@ export default function MapView({
     if (!map) return
     map.getSource('measure-line')?.setData({
       type: 'Feature',
-      geometry: { type: 'LineString', coordinates: measurePoints },
+      geometry: { type: 'LineString', coordinates: measurePoints.map(p => [p.lng, p.lat]) },
     })
     map.getSource('measure-points')?.setData({
       type: 'FeatureCollection',
-      features: measurePoints.map(coords => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: coords },
-      })),
+      features: measurePoints.map((p, i) => {
+        const isStop = p.type === 'stop'
+        const name = isStop ? (p.stopNote?.trim() || `Postój ${i + 1}`) : `Punkt ${i + 1}`
+        const t = measureEtas?.[i]
+        const timeLabel = i === 0
+          ? `Odjazd: ${t != null ? fmtTime(t) : '—'}`
+          : `Przybycie: ${t != null ? fmtTime(t) : '—'}`
+        return {
+          type: 'Feature',
+          properties: { type: p.type, name, timeLabel },
+          geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+        }
+      }),
     })
-  }, [measurePoints])
+  }, [measurePoints, measureEtas])
 
   // Seamarks data + visibility
   useEffect(() => {
@@ -1042,6 +1197,21 @@ export default function MapView({
     const vis = vesselsVisible ? 'visible' : 'none'
     if (map.getLayer('vessel-points')) map.setLayoutProperty('vessel-points', 'visibility', vis)
   }, [vesselsVisible, vesselsData])
+
+  // Location history data + visibility
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const coords = locationHistoryVisible ? (locationHistoryPoints ?? []) : []
+    map.getSource('location-history-line')?.setData({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: coords },
+    })
+    map.getSource('location-history-points')?.setData({
+      type: 'FeatureCollection',
+      features: coords.map(c => ({ type: 'Feature', geometry: { type: 'Point', coordinates: c } })),
+    })
+  }, [locationHistoryVisible, locationHistoryPoints])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

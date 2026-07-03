@@ -9,12 +9,23 @@ import { BUILT_IN_FUEL_STATIONS, loadCustomFuelStations, saveCustomFuelStations,
 import { BUILT_IN_MARINAS, loadUserMarinas, saveUserMarinas, marinasToGeoJSON } from './utils/customMarinas'
 import { BUILT_IN_LOCKS, loadUserLocks, saveUserLocks, locksToGeoJSON } from './utils/customLocks'
 import { createAisStream } from './utils/aisStream'
+import { loadLocationHistory, saveLocationHistory, addPosition, filterByRange } from './utils/locationHistory'
+import { computeETAs } from './utils/eta'
 
 const STORAGE_KEY = 'bay-nav-measurements'
 const AIS_LOAD_KEY = 'bay-nav-ais-last-load-ms'
+const MIN_GPS_SAVE_INTERVAL_MS = 10000
+
+function normalizePoint(p) {
+  if (Array.isArray(p)) return { lng: p[0], lat: p[1], type: 'waypoint', stopDuration: '', stopNote: '' }
+  return { type: 'waypoint', stopDuration: '', stopNote: '', ...p }
+}
 
 function loadSaved() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    return parsed.map(m => ({ ...m, points: m.points.map(normalizePoint) }))
+  } catch { return [] }
 }
 
 export default function App() {
@@ -25,12 +36,21 @@ export default function App() {
   const [measurePoints, setMeasurePoints] = useState([])
   const [measureSpeeds, setMeasureSpeeds] = useState([])
   const [measureDepartureTime, setMeasureDepartureTime] = useState('')
+  const [routeConfigOpen, setRouteConfigOpen] = useState(false)
   const [coordPoint, setCoordPoint] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [savedMeasurements, setSavedMeasurements] = useState(loadSaved)
 
+  // Location history
+  const [locationHistory, setLocationHistory] = useState(loadLocationHistory)
+  const [historyRange, setHistoryRange] = useState(() => {
+    const now = Date.now()
+    return { startTs: now - 24 * 60 * 60 * 1000, endTs: now }
+  })
+  const lastGpsSaveTs = useRef(0)
+
   // Layer toggles (independent)
-  const [visibleLayers, setVisibleLayers] = useState({ seamarks: false, fuel: false, marinas: false, locks: false, ships: false })
+  const [visibleLayers, setVisibleLayers] = useState({ seamarks: false, fuel: false, marinas: false, locks: false, ships: false, locationHistory: false })
   const [customFuelStations, setCustomFuelStations] = useState(loadCustomFuelStations)
   const [isPlacingFuel, setIsPlacingFuel] = useState(false)
   const [pendingFuelPoint, setPendingFuelPoint] = useState(null)
@@ -61,6 +81,34 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedMeasurements))
   }, [savedMeasurements])
 
+  // Track GPS position continuously and persist to history
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    const watchId = navigator.geolocation.watchPosition(
+      pos => {
+        const now = Date.now()
+        if (now - lastGpsSaveTs.current < MIN_GPS_SAVE_INTERVAL_MS) return
+        lastGpsSaveTs.current = now
+        const { longitude: lng, latitude: lat } = pos.coords
+        setLocationHistory(prev => {
+          const next = addPosition(prev, { lng, lat, ts: now })
+          saveLocationHistory(next)
+          return next
+        })
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    )
+    return () => navigator.geolocation.clearWatch(watchId)
+  }, [])
+
+  // When location history layer is toggled on, refresh the end of the range to now
+  useEffect(() => {
+    if (visibleLayers.locationHistory) {
+      setHistoryRange(prev => ({ ...prev, endTs: Date.now() }))
+    }
+  }, [visibleLayers.locationHistory])
+
   // Persist custom fuel stations
   useEffect(() => {
     saveCustomFuelStations(customFuelStations)
@@ -73,6 +121,17 @@ export default function App() {
 
   useEffect(() => { saveUserLocks(userLocks) }, [userLocks])
   const locksData = useMemo(() => locksToGeoJSON([...BUILT_IN_LOCKS, ...userLocks]), [userLocks])
+
+  const measureEtas = useMemo(
+    () => computeETAs(measurePoints, measureSpeeds, measureDepartureTime),
+    [measurePoints, measureSpeeds, measureDepartureTime]
+  )
+
+  const historyPoints = useMemo(() => {
+    if (!visibleLayers.locationHistory) return []
+    return filterByRange(locationHistory, historyRange.startTs, historyRange.endTs)
+      .map(p => [p.lng, p.lat])
+  }, [locationHistory, historyRange, visibleLayers.locationHistory])
 
   // Update cache info whenever data loads
   useEffect(() => {
@@ -251,6 +310,19 @@ export default function App() {
     setUserLocks(prev => prev.filter(l => l.id !== id))
   }
 
+  function handleHistoryRangeChange(startTs, endTs) {
+    setHistoryRange(prev => ({
+      startTs: startTs ?? prev.startTs,
+      endTs: endTs ?? prev.endTs,
+    }))
+  }
+
+  function handleSetHistoryQuickRange(preset) {
+    const now = Date.now()
+    const offsets = { '1h': 3600000, '6h': 6 * 3600000, '24h': 86400000, '7d': 7 * 86400000 }
+    setHistoryRange({ startTs: now - (offsets[preset] ?? 86400000), endTs: now })
+  }
+
   function handleRefreshSeamarks() {
     clearSeamarksCache()
     setSeamarksData(null)
@@ -276,6 +348,7 @@ export default function App() {
     setMeasurePoints([])
     setMeasureSpeeds([])
     setMeasureDepartureTime('')
+    setRouteConfigOpen(false)
     setCoordPoint(null)
     setEditingId(null)
   }
@@ -285,8 +358,26 @@ export default function App() {
   }
 
   const handleAddPoint = useCallback((lngLat) => {
-    setMeasurePoints(pts => [...pts, lngLat])
+    setMeasurePoints(pts => [...pts, { ...lngLat, type: 'waypoint', stopDuration: '', stopNote: '' }])
   }, [])
+
+  function handleMeasurePointChange(index, patch) {
+    setMeasurePoints(pts => pts.map((pt, i) => i === index ? { ...pt, ...patch } : pt))
+  }
+
+  function handleDeleteMeasurePoint(index) {
+    setMeasurePoints(pts => pts.filter((_, i) => i !== index))
+    setMeasureSpeeds(speeds => {
+      const segIdx = index < speeds.length ? index : index - 1
+      if (segIdx < 0) return speeds
+      return speeds.filter((_, i) => i !== segIdx)
+    })
+  }
+
+  function handleUndoLastPoint() {
+    setMeasurePoints(pts => pts.slice(0, -1))
+    setMeasureSpeeds(speeds => speeds.slice(0, -1))
+  }
 
   function handleSaveMeasurement(name) {
     if (editingId) {
@@ -319,8 +410,6 @@ export default function App() {
     setSavedMeasurements(prev => prev.filter(m => m.id !== id))
     if (editingId === id) { setMeasurePoints([]); setEditingId(null) }
   }
-
-  const editingMeasurement = savedMeasurements.find(m => m.id === editingId) ?? null
 
   return (
     <div className="layout">
@@ -357,11 +446,22 @@ export default function App() {
         editingId={editingId}
         onLoadMeasurement={handleLoadMeasurement}
         onDeleteMeasurement={handleDeleteMeasurement}
+        measurePoints={measurePoints}
+        measureSpeeds={measureSpeeds}
+        measureDepartureTime={measureDepartureTime}
+        onSaveMeasurement={handleSaveMeasurement}
+        onOpenRouteConfig={() => setRouteConfigOpen(true)}
+        onUndoLastPoint={handleUndoLastPoint}
+        historyRange={historyRange}
+        historyPointCount={historyPoints.length}
+        onHistoryRangeChange={handleHistoryRangeChange}
+        onSetHistoryQuickRange={handleSetHistoryQuickRange}
       />
       <main className="map-pane">
         <MapView
           isMeasuring={activeTool === 'measure'}
           measurePoints={measurePoints}
+          measureEtas={measureEtas}
           onAddPoint={handleAddPoint}
           seamarksVisible={visibleLayers.seamarks}
           seamarksData={seamarksData}
@@ -382,6 +482,8 @@ export default function App() {
           isCoords={activeTool === 'coords'}
           coordPoint={coordPoint}
           onCoordPoint={setCoordPoint}
+          locationHistoryVisible={visibleLayers.locationHistory}
+          locationHistoryPoints={historyPoints}
         />
         {isPlacingFuel && !pendingFuelPoint && (
           <div className="place-fuel-banner">
@@ -440,15 +542,16 @@ export default function App() {
         {activeTool === 'coords' && (
           <CoordBar point={coordPoint} />
         )}
-        {activeTool === 'measure' && (
+        {activeTool === 'measure' && routeConfigOpen && measurePoints.length > 0 && (
           <DistanceBar
             points={measurePoints}
             speeds={measureSpeeds}
             departureTime={measureDepartureTime}
             onSpeedChange={handleMeasureSpeedChange}
             onDepartureTimeChange={setMeasureDepartureTime}
-            editingMeasurement={editingMeasurement}
-            onSave={handleSaveMeasurement}
+            onPointChange={handleMeasurePointChange}
+            onPointDelete={handleDeleteMeasurePoint}
+            onClose={() => setRouteConfigOpen(false)}
           />
         )}
       </main>

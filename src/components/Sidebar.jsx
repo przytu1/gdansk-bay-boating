@@ -1,9 +1,12 @@
-import { totalDistanceKm } from '../utils/distance'
+import { useState, useEffect } from 'react'
+import { totalDistanceKm, kmToNm } from '../utils/distance'
+import { computeETAs, fmtDuration } from '../utils/eta'
 import './Sidebar.css'
 
 const NAV_ITEMS = [
-  { id: 'measure', label: 'Pomiar', Icon: RulerIcon, kind: 'tool' },
+  { id: 'measure', label: 'Planowanie trasy', Icon: RulerIcon, kind: 'tool' },
   { id: 'coords', label: 'Koordynaty', Icon: CoordIcon, kind: 'tool' },
+  { id: 'locationHistory', label: 'Historia lokalizacji', Icon: HistoryIcon, kind: 'layer' },
   { id: 'seamarks', label: 'Znaki nawigacyjne', Icon: SeamarksIcon, kind: 'layer' },
   { id: 'marinas', label: 'Mariny i przystanie', Icon: MarinaIcon, kind: 'layer' },
   { id: 'locks', label: 'Śluzy i mosty zwodzone', Icon: LockIcon, kind: 'layer' },
@@ -11,6 +14,12 @@ const NAV_ITEMS = [
   { id: 'fuel', label: 'Stacje paliw', Icon: FuelStationIcon, kind: 'layer' },
   { id: 'settings', label: 'Ustawienia', Icon: SettingsIcon, kind: 'tool' },
 ]
+
+function toDatetimeLocal(ts) {
+  const d = new Date(ts)
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 function formatTime(ts) {
   return new Date(ts).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -83,7 +92,26 @@ export default function Sidebar({
   editingId,
   onLoadMeasurement,
   onDeleteMeasurement,
+  measurePoints,
+  measureSpeeds,
+  measureDepartureTime,
+  onSaveMeasurement,
+  onOpenRouteConfig,
+  onUndoLastPoint,
+  historyRange,
+  historyPointCount,
+  onHistoryRangeChange,
+  onSetHistoryQuickRange,
 }) {
+  const [routeSaving, setRouteSaving] = useState(false)
+  const [routeName, setRouteName] = useState('')
+
+  const editingMeasurement = savedMeasurements.find(m => m.id === editingId) ?? null
+
+  useEffect(() => {
+    if (editingMeasurement) setRouteName(editingMeasurement.name)
+  }, [editingMeasurement?.id])
+
   function handleNavClick(item) {
     if (item.kind === 'tool') onToolChange(item.id)
     else onLayerToggle(item.id)
@@ -92,6 +120,18 @@ export default function Sidebar({
   function isActive(item) {
     return item.kind === 'tool' ? activeTool === item.id : visibleLayers[item.id]
   }
+
+  function handleRouteSaveClick() {
+    if (!routeSaving) { setRouteSaving(true); return }
+    if (routeName.trim()) { onSaveMeasurement(routeName.trim()); setRouteSaving(false) }
+  }
+
+  const routeKm = measurePoints?.length ? totalDistanceKm(measurePoints) : 0
+  const routeNm = kmToNm(routeKm)
+  const routeEtas = measurePoints ? computeETAs(measurePoints, measureSpeeds, measureDepartureTime) : []
+  const routeTotalMinutes = (routeEtas.length >= 2 && routeEtas[0] != null && routeEtas[routeEtas.length - 1] != null)
+    ? routeEtas[routeEtas.length - 1] - routeEtas[0]
+    : null
 
   return (
     <>
@@ -150,6 +190,34 @@ export default function Sidebar({
             </li>
           ))}
         </ul>
+
+        {visibleLayers.locationHistory && historyRange && (
+          <div className="sidebar-panel">
+            <div className="sidebar-panel-title">Historia lokalizacji</div>
+            <div className="history-range-fields">
+              <label className="history-range-label">Od</label>
+              <input
+                type="datetime-local"
+                className="history-range-input"
+                value={toDatetimeLocal(historyRange.startTs)}
+                onChange={e => onHistoryRangeChange(new Date(e.target.value).getTime(), null)}
+              />
+              <label className="history-range-label">Do</label>
+              <input
+                type="datetime-local"
+                className="history-range-input"
+                value={toDatetimeLocal(historyRange.endTs)}
+                onChange={e => onHistoryRangeChange(null, new Date(e.target.value).getTime())}
+              />
+            </div>
+            <div className="history-quick-btns">
+              {['1h', '6h', '24h', '7d'].map(p => (
+                <button key={p} className="history-quick-btn" onClick={() => onSetHistoryQuickRange(p)}>{p}</button>
+              ))}
+            </div>
+            <p className="history-point-count">{historyPointCount} pkt w zakresie</p>
+          </div>
+        )}
 
         {activeTool === 'settings' && (
           <div className="sidebar-panel">
@@ -256,9 +324,72 @@ export default function Sidebar({
 
         {activeTool === 'measure' && (
           <div className="sidebar-panel">
-            <div className="sidebar-panel-title">Zapisane pomiary</div>
+            <div className="sidebar-panel-title">Edytowana trasa</div>
+            {measurePoints.length === 0 ? (
+              <p className="sidebar-panel-empty">Kliknij mapę, aby dodać punkty trasy</p>
+            ) : (
+              <>
+                <div className="route-edit-summary">
+                  <span className="route-edit-km">{routeKm.toFixed(2)} km</span>
+                  <span className="route-edit-sep">·</span>
+                  <span className="route-edit-nm">{routeNm.toFixed(2)} NM</span>
+                  {routeTotalMinutes != null && (
+                    <>
+                      <span className="route-edit-sep">·</span>
+                      <span className="route-edit-time">{fmtDuration(routeTotalMinutes)}</span>
+                    </>
+                  )}
+                  <span className="route-edit-pts">{measurePoints.length} pkt</span>
+                </div>
+
+                <button className="route-edit-undo-btn" onClick={onUndoLastPoint}>
+                  ↶ Cofnij ostatni punkt
+                </button>
+
+                <button className="settings-update-btn" onClick={onOpenRouteConfig}>
+                  Konfiguruj punkty trasy
+                </button>
+
+                {routeSaving ? (
+                  <div className="route-edit-save-row">
+                    <input
+                      className="route-edit-name-input"
+                      value={routeName}
+                      onChange={e => setRouteName(e.target.value)}
+                      placeholder="Nazwa trasy…"
+                      autoFocus
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleRouteSaveClick()
+                        if (e.key === 'Escape') setRouteSaving(false)
+                      }}
+                    />
+                    <div className="route-edit-save-actions">
+                      <button
+                        className="settings-update-btn"
+                        onClick={handleRouteSaveClick}
+                        disabled={!routeName.trim()}
+                      >
+                        Zapisz
+                      </button>
+                      <button className="route-edit-cancel" onClick={() => setRouteSaving(false)}>Anuluj</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="settings-update-btn" onClick={handleRouteSaveClick}>
+                    {editingMeasurement ? `Aktualizuj „${editingMeasurement.name}"` : 'Zapisz trasę'}
+                  </button>
+                )}
+              </>
+            )}
+            <div className="sidebar-panel-divider" />
+          </div>
+        )}
+
+        {activeTool === 'measure' && (
+          <div className="sidebar-panel">
+            <div className="sidebar-panel-title">Zapisane trasy</div>
             {savedMeasurements.length === 0 ? (
-              <p className="sidebar-panel-empty">Brak zapisanych pomiarów</p>
+              <p className="sidebar-panel-empty">Brak zapisanych tras</p>
             ) : (
               <ul className="sidebar-saved-list">
                 {savedMeasurements.map(m => (
@@ -429,6 +560,15 @@ function TrashIcon() {
       <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
       <path d="M10 11v6M14 11v6" />
       <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  )
+}
+
+function HistoryIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
     </svg>
   )
 }

@@ -1,85 +1,42 @@
-import { useState, useEffect } from 'react'
-import { totalDistanceKm, kmToNm, segmentNm } from '../utils/distance'
+import { segmentNm } from '../utils/distance'
+import { computeETAs, fmtTime, fmtDuration } from '../utils/eta'
 import './DistanceBar.css'
 
-function computeETAs(points, speeds, departureTime) {
-  if (!departureTime || points.length < 1) return []
-  const [hStr, mStr] = departureTime.split(':')
-  const h = parseInt(hStr, 10)
-  const m = parseInt(mStr, 10)
-  if (isNaN(h) || isNaN(m)) return []
-
-  const times = [h * 60 + m]
-  for (let i = 0; i + 1 < points.length; i++) {
-    const prev = times[i]
-    if (prev == null) { times.push(null); continue }
-    const spd = parseFloat(speeds?.[i])
-    if (!spd || spd <= 0) { times.push(null); continue }
-    const dist = segmentNm(points[i], points[i + 1])
-    times.push(prev + (dist / spd) * 60)
-  }
-  return times
-}
-
-function fmtTime(minutes) {
-  if (minutes == null || isNaN(minutes)) return '—'
-  const total = Math.round(minutes)
-  const days = Math.floor(total / 1440)
-  const rem = ((total % 1440) + 1440) % 1440
-  const h = String(Math.floor(rem / 60)).padStart(2, '0')
-  const min = String(rem % 60).padStart(2, '0')
-  return days > 0 ? `+${days}d ${h}:${min}` : `${h}:${min}`
-}
-
-function fmtDuration(minutes) {
-  if (minutes == null || minutes <= 0) return null
-  const h = Math.floor(minutes / 60)
-  const m = Math.round(minutes % 60)
-  if (h === 0) return `${m} min`
-  return `${h}h ${String(m).padStart(2, '0')}min`
+function TrashIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  )
 }
 
 export default function DistanceBar({
   points, speeds, departureTime,
-  onSpeedChange, onDepartureTimeChange,
-  editingMeasurement, onSave,
+  onSpeedChange, onDepartureTimeChange, onPointChange, onPointDelete,
+  onClose,
 }) {
-  const [saving, setSaving] = useState(false)
-  const [name, setName] = useState('')
-  const [etaOpen, setEtaOpen] = useState(false)
+  if (points.length < 1) return null
 
-  useEffect(() => {
-    if (editingMeasurement) setName(editingMeasurement.name)
-  }, [editingMeasurement?.id])
-
-  if (points.length < 2) {
-    return (
-      <div className="distance-bar-wrapper">
-        <div className="distance-bar distance-bar--hint">
-          Kliknij mapę, aby dodać punkty trasy
-        </div>
-      </div>
-    )
-  }
-
-  const km = totalDistanceKm(points)
-  const nm = kmToNm(km)
   const etas = computeETAs(points, speeds, departureTime)
   const lastEta = etas.length >= 2 ? etas[etas.length - 1] : null
   const firstEta = etas.length >= 1 ? etas[0] : null
   const totalMinutes = (lastEta != null && firstEta != null) ? lastEta - firstEta : null
 
-  function handleSaveClick() {
-    if (!saving) { setSaving(true); return }
-    if (name.trim()) { onSave(name.trim()); setSaving(false) }
-  }
-
   return (
-    <div className="distance-bar-wrapper">
-      {etaOpen && (
-        <div className="eta-panel">
+    <div className="route-config-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="route-config-panel">
+        <div className="route-config-header">
+          <h3>Punkty trasy</h3>
+          <button className="route-config-close" onClick={onClose} aria-label="Zamknij">✕</button>
+        </div>
+
+        <div className="route-config-body">
           {points.map((pt, i) => {
             const isLast = i === points.length - 1
+            const isStop = pt.type === 'stop'
             const dist = !isLast ? segmentNm(pt, points[i + 1]) : null
             const spd = parseFloat(speeds?.[i])
             const segMin = (dist && spd > 0) ? (dist / spd) * 60 : null
@@ -87,7 +44,27 @@ export default function DistanceBar({
             return (
               <div key={i} className="eta-waypoint">
                 <div className="eta-point-row">
-                  <span className="eta-point-label">Punkt {i + 1}</span>
+                  <span className="eta-point-label">
+                    {isStop && <span className="eta-anchor-badge">⚓</span>}
+                    Punkt {i + 1}
+                  </span>
+
+                  <div className="eta-type-toggle">
+                    <button
+                      type="button"
+                      className={`eta-type-btn${!isStop ? ' eta-type-btn--active-waypoint' : ''}`}
+                      onClick={() => onPointChange(i, { type: 'waypoint' })}
+                    >
+                      Punkt
+                    </button>
+                    <button
+                      type="button"
+                      className={`eta-type-btn${isStop ? ' eta-type-btn--active-stop' : ''}`}
+                      onClick={() => onPointChange(i, { type: 'stop' })}
+                    >
+                      Postój
+                    </button>
+                  </div>
 
                   <div className="eta-point-time">
                     {i === 0 ? (
@@ -110,7 +87,50 @@ export default function DistanceBar({
                     )}
                   </div>
 
-                  {!isLast && (
+                  <button
+                    type="button"
+                    className="eta-delete-btn"
+                    onClick={() => onPointDelete(i)}
+                    aria-label={`Usuń punkt ${i + 1}`}
+                    title="Usuń punkt"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+
+                {isStop && (
+                  <div className="eta-stop-config">
+                    <label className="eta-stop-field">
+                      <span className="eta-stop-field-label">Czas postoju</span>
+                      <span className="eta-stop-duration">
+                        <input
+                          type="number"
+                          className="eta-stop-duration-input"
+                          value={pt.stopDuration ?? ''}
+                          onChange={e => onPointChange(i, { stopDuration: e.target.value })}
+                          placeholder="0"
+                          min="0"
+                          step="5"
+                          inputMode="numeric"
+                        />
+                        <span className="eta-stop-duration-unit">min</span>
+                      </span>
+                    </label>
+                    <label className="eta-stop-field eta-stop-field--note">
+                      <span className="eta-stop-field-label">Opis</span>
+                      <input
+                        type="text"
+                        className="eta-stop-note-input"
+                        value={pt.stopNote ?? ''}
+                        onChange={e => onPointChange(i, { stopNote: e.target.value })}
+                        placeholder="np. tankowanie, śluzowanie, nocleg"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {!isLast && (
+                  <div className="eta-segment">
                     <div className="eta-speed">
                       <input
                         type="number"
@@ -125,11 +145,6 @@ export default function DistanceBar({
                       />
                       <span className="eta-speed-unit">kn</span>
                     </div>
-                  )}
-                </div>
-
-                {!isLast && (
-                  <div className="eta-segment">
                     <span className="eta-seg-dist">{dist.toFixed(2)} NM</span>
                     {segMin != null && (
                       <span className="eta-seg-dur">{fmtDuration(segMin)}</span>
@@ -147,55 +162,6 @@ export default function DistanceBar({
                 <> · Przybycie: <strong>{fmtTime(lastEta)}</strong></>
               )}
             </div>
-          )}
-        </div>
-      )}
-
-      <div className="distance-bar">
-        <div className="distance-values">
-          <span className="distance-nm">{nm.toFixed(2)} NM</span>
-          <span className="distance-sep">·</span>
-          <span className="distance-km">{km.toFixed(2)} km</span>
-          {totalMinutes != null && (
-            <>
-              <span className="distance-sep">·</span>
-              <span className="distance-eta-total">{fmtDuration(totalMinutes)}</span>
-            </>
-          )}
-          <span className="distance-pts">{points.length} pkt</span>
-        </div>
-
-        <div className="distance-actions">
-          <button
-            className={`distance-btn${etaOpen ? ' distance-btn--active' : ''}`}
-            onClick={() => setEtaOpen(o => !o)}
-            title="Plan trasy z ETA"
-          >
-            ETA {etaOpen ? '▲' : '▼'}
-          </button>
-
-          {saving ? (
-            <>
-              <input
-                className="distance-name-input"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Nazwa trasy…"
-                autoFocus
-                onKeyDown={e => {
-                  if (e.key === 'Enter') handleSaveClick()
-                  if (e.key === 'Escape') setSaving(false)
-                }}
-              />
-              <button className="distance-btn distance-btn--primary" onClick={handleSaveClick} disabled={!name.trim()}>
-                Zapisz
-              </button>
-              <button className="distance-btn" onClick={() => setSaving(false)}>Anuluj</button>
-            </>
-          ) : (
-            <button className="distance-btn distance-btn--primary" onClick={handleSaveClick}>
-              {editingMeasurement ? `Aktualizuj „${editingMeasurement.name}"` : 'Zapisz'}
-            </button>
           )}
         </div>
       </div>

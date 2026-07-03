@@ -395,3 +395,181 @@
 .settings-update-btn--teal:hover:not(:disabled) {
   background: #0c6577;
 }
+
+/* Location history panel */
+.history-range-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 4px 12px 10px;
+}
+
+.history-range-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  font-family: system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+.history-range-input {
+  width: 100%;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-family: system-ui, sans-serif;
+  color: var(--text);
+  background: var(--sidebar-bg);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 5px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.history-range-input:focus {
+  border-color: var(--accent);
+}
+
+.history-quick-btns {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+
+.history-quick-btn {
+  flex: 1;
+  padding: 5px 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: system-ui, sans-serif;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.history-quick-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.history-point-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 12px 6px;
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
+
+/* Edytowana trasa panel */
+.route-edit-summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 10px;
+}
+
+.route-edit-km {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: system-ui, sans-serif;
+}
+
+.route-edit-nm {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: system-ui, sans-serif;
+}
+
+.route-edit-sep {
+  color: #aab8c2;
+  font-size: 12px;
+}
+
+.route-edit-time {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+}
+
+.route-edit-pts {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: system-ui, sans-serif;
+  margin-left: 2px;
+}
+
+.route-edit-undo-btn {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 0 12px 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--sidebar-border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: system-ui, sans-serif;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.route-edit-undo-btn:hover {
+  background: var(--sidebar-hover);
+  color: var(--text);
+}
+
+.route-edit-save-row {
+  padding: 8px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.route-edit-name-input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1.5px solid var(--accent);
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  font-family: system-ui, sans-serif;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.route-edit-save-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.route-edit-save-actions .settings-update-btn {
+  width: auto;
+  flex: 1;
+  margin: 0;
+}
+
+.route-edit-cancel {
+  padding: 8px 14px;
+  border: 1px solid var(--sidebar-border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.route-edit-cancel:hover {
+  background: var(--sidebar-hover);
+}

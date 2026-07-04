@@ -185,6 +185,35 @@
   font-family: system-ui, sans-serif;
 }
 
+.sidebar-panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 8px;
+}
+
+.sidebar-panel-title-row .sidebar-panel-title {
+  padding: 0;
+}
+
+.sidebar-import-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+  transition: background 0.12s, color 0.12s;
+}
+
+.sidebar-import-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
 .sidebar-panel-empty {
   font-size: 13px;
   color: var(--text-muted);

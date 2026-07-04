@@ -1,5 +1,6 @@
-import { segmentNm } from '../utils/distance'
-import { computeETAs, fmtTime, fmtDuration } from '../utils/eta'
+import { segmentNm, segmentKm } from '../utils/distance'
+import { computeETAs, fmtTime, fmtDuration, DEFAULT_SPEED_KN } from '../utils/eta'
+import { computeFuelLevels } from '../utils/fuel'
 import './DistanceBar.css'
 
 function TrashIcon() {
@@ -13,9 +14,19 @@ function TrashIcon() {
   )
 }
 
+function FuelGauge({ level, capacity }) {
+  const pct = level == null ? 0 : Math.max(0, Math.min(100, (level / capacity) * 100))
+  return (
+    <span className="eta-fuel-gauge">
+      <span className="eta-fuel-gauge-fill" style={{ width: `${pct}%` }} />
+    </span>
+  )
+}
+
 export default function DistanceBar({
   points, speeds, departureTime,
   onSpeedChange, onDepartureTimeChange, onPointChange, onPointDelete,
+  fuel, onFuelChange,
   onClose,
 }) {
   if (points.length < 1) return null
@@ -25,28 +36,89 @@ export default function DistanceBar({
   const firstEta = etas.length >= 1 ? etas[0] : null
   const totalMinutes = (lastEta != null && firstEta != null) ? lastEta - firstEta : null
 
+  const fuelCapacity = parseFloat(fuel?.capacity)
+  const fuelConfigured = !isNaN(fuelCapacity) && fuelCapacity > 0
+  const fuelLevels = fuelConfigured ? computeFuelLevels(points, fuel.start, fuel.consumption) : []
+
   return (
     <div className="route-config-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="route-config-panel">
         <div className="route-config-header">
-          <h3>Punkty trasy</h3>
+          <h3>Konfiguracja trasy</h3>
           <button className="route-config-close" onClick={onClose} aria-label="Zamknij">✕</button>
         </div>
 
         <div className="route-config-body">
+          <div className="fuel-config-card">
+            <div className="fuel-config-header">⛽ Paliwo</div>
+            <div className="fuel-config-fields">
+              <label className="eta-seg-field">
+                <span className="eta-field-label">Pojemność baku</span>
+                <span className="eta-fuel-input-group">
+                  <input
+                    type="number"
+                    className="eta-fuel-input"
+                    value={fuel?.capacity ?? ''}
+                    onChange={e => onFuelChange({ capacity: e.target.value })}
+                    placeholder="0"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                  />
+                  <span className="eta-fuel-input-unit">l</span>
+                </span>
+              </label>
+              <label className="eta-seg-field">
+                <span className="eta-field-label">Stan początkowy</span>
+                <span className="eta-fuel-input-group">
+                  <input
+                    type="number"
+                    className="eta-fuel-input"
+                    value={fuel?.start ?? ''}
+                    onChange={e => onFuelChange({ start: e.target.value })}
+                    placeholder="0"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                  />
+                  <span className="eta-fuel-input-unit">l</span>
+                </span>
+              </label>
+              <label className="eta-seg-field">
+                <span className="eta-field-label">Spalanie</span>
+                <span className="eta-fuel-input-group">
+                  <input
+                    type="number"
+                    className="eta-fuel-input"
+                    value={fuel?.consumption ?? ''}
+                    onChange={e => onFuelChange({ consumption: e.target.value })}
+                    placeholder="0"
+                    min="0"
+                    step="0.5"
+                    inputMode="decimal"
+                  />
+                  <span className="eta-fuel-input-unit">l/100km</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
           {points.map((pt, i) => {
             const isLast = i === points.length - 1
             const isStop = pt.type === 'stop'
             const seq = pt.seq ?? (i + 1)
             const defaultTitle = isStop ? `Postój ${seq}` : `Punkt ${seq}`
-            const dist = !isLast ? segmentNm(pt, points[i + 1]) : null
-            const spd = parseFloat(speeds?.[i])
-            const segMin = (dist && spd > 0) ? (dist / spd) * 60 : null
+            const distNm = !isLast ? segmentNm(pt, points[i + 1]) : null
+            const distKm = !isLast ? segmentKm(pt, points[i + 1]) : null
+            const rawSpd = speeds?.[i]
+            const spd = (rawSpd === undefined || rawSpd === null) ? DEFAULT_SPEED_KN : parseFloat(rawSpd)
+            const segMin = (distNm && spd > 0) ? (distNm / spd) * 60 : null
+            const fuelLevel = fuelConfigured ? (fuelLevels[i] ?? null) : null
 
             return (
-              <div key={i} className="eta-waypoint">
+              <div key={i} className={`eta-waypoint${isStop ? ' eta-waypoint--stop' : ''}`}>
                 <div className="eta-title-row">
-                  {isStop && <span className="eta-anchor-badge">⚓</span>}
+                  <span className="eta-anchor-badge">{isStop ? '⚓' : '⛵'}</span>
                   <input
                     type="text"
                     className="eta-title-input"
@@ -71,14 +143,14 @@ export default function DistanceBar({
                     <div className="eta-type-toggle">
                       <button
                         type="button"
-                        className={`eta-type-btn${!isStop ? ' eta-type-btn--active-waypoint' : ''}`}
+                        className={`eta-type-btn${!isStop ? ' eta-type-btn--active' : ''}`}
                         onClick={() => onPointChange(i, { type: 'waypoint' })}
                       >
                         W ruchu
                       </button>
                       <button
                         type="button"
-                        className={`eta-type-btn${isStop ? ' eta-type-btn--active-stop' : ''}`}
+                        className={`eta-type-btn${isStop ? ' eta-type-btn--active' : ''}`}
                         onClick={() => onPointChange(i, { type: 'stop' })}
                       >
                         Postój
@@ -106,6 +178,18 @@ export default function DistanceBar({
                       </>
                     )}
                   </div>
+
+                  {fuelConfigured && (
+                    <div className="eta-seg-field">
+                      <span className="eta-field-label">Stan baku</span>
+                      <span className="eta-fuel-display">
+                        <span className="eta-fuel-value">
+                          {fuelLevel != null ? `${Math.round(fuelLevel)} l` : '—'}
+                        </span>
+                        <FuelGauge level={fuelLevel} capacity={fuelCapacity} />
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {isStop && (
@@ -136,6 +220,24 @@ export default function DistanceBar({
                         placeholder="np. tankowanie, śluzowanie, nocleg"
                       />
                     </label>
+                    {fuelConfigured && (
+                      <label className="eta-seg-field">
+                        <span className="eta-field-label">Stan baku po tankowaniu</span>
+                        <span className="eta-fuel-input-group">
+                          <input
+                            type="number"
+                            className="eta-fuel-input"
+                            value={pt.fuelOverride ?? ''}
+                            onChange={e => onPointChange(i, { fuelOverride: e.target.value })}
+                            placeholder="—"
+                            min="0"
+                            step="1"
+                            inputMode="numeric"
+                          />
+                          <span className="eta-fuel-input-unit">l</span>
+                        </span>
+                      </label>
+                    )}
                   </div>
                 )}
 
@@ -147,7 +249,7 @@ export default function DistanceBar({
                         <input
                           type="number"
                           className="eta-speed-field"
-                          value={speeds?.[i] ?? ''}
+                          value={speeds?.[i] ?? DEFAULT_SPEED_KN}
                           onChange={e => onSpeedChange(i, e.target.value)}
                           placeholder="—"
                           min="0.1"
@@ -160,7 +262,7 @@ export default function DistanceBar({
                     </div>
                     <div className="eta-seg-field">
                       <span className="eta-field-label">Długość odcinka</span>
-                      <span className="eta-seg-dist">{dist.toFixed(2)} NM</span>
+                      <span className="eta-seg-dist">{distKm.toFixed(2)} km</span>
                     </div>
                     {segMin != null && (
                       <div className="eta-seg-field">

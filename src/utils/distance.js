@@ -24,3 +24,7 @@ export function kmToNm(km) {
 export function segmentNm(p1, p2) {
   return haversineKm(p1, p2) / KM_PER_NM
 }
+
+export function segmentKm(p1, p2) {
+  return haversineKm(p1, p2)
+}

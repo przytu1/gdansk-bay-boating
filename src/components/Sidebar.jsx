@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { totalDistanceKm, kmToNm } from '../utils/distance'
 import { computeETAs, fmtDuration } from '../utils/eta'
 import './Sidebar.css'
@@ -95,9 +95,11 @@ export default function Sidebar({
   measurePoints,
   measureSpeeds,
   measureDepartureTime,
+  measureFuel,
   onSaveMeasurement,
   onOpenRouteConfig,
   onUndoLastPoint,
+  onImportMeasurement,
   historyRange,
   historyPointCount,
   onHistoryRangeChange,
@@ -106,6 +108,8 @@ export default function Sidebar({
   const [routeSaving, setRouteSaving] = useState(false)
   const [routeName, setRouteName] = useState('')
   const [routeJustSaved, setRouteJustSaved] = useState(false)
+  const [importError, setImportError] = useState('')
+  const importFileInputRef = useRef(null)
 
   const editingMeasurement = savedMeasurements.find(m => m.id === editingId) ?? null
 
@@ -135,6 +139,42 @@ export default function Sidebar({
       setRouteSaving(false)
       setRouteJustSaved(true)
     }
+  }
+
+  function handleExportRoute() {
+    const data = {
+      name: editingMeasurement?.name || routeName.trim() || 'Trasa',
+      points: measurePoints,
+      speeds: measureSpeeds,
+      departureTime: measureDepartureTime,
+      fuel: measureFuel,
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${data.name.replace(/[^\w\-ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]+/g, '_')}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  function handleImportFileChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result)
+        const ok = onImportMeasurement(data)
+        setImportError(ok ? '' : 'Nieprawidłowy plik trasy.')
+      } catch {
+        setImportError('Nie udało się odczytać pliku JSON.')
+      }
+    }
+    reader.readAsText(file)
   }
 
   const routeKm = measurePoints?.length ? totalDistanceKm(measurePoints) : 0
@@ -358,7 +398,11 @@ export default function Sidebar({
                 </button>
 
                 <button className="settings-update-btn" onClick={onOpenRouteConfig}>
-                  Konfiguruj punkty trasy
+                  Konfiguruj trasę
+                </button>
+
+                <button className="route-edit-undo-btn" onClick={handleExportRoute}>
+                  ⬇ Pobierz JSON
                 </button>
 
                 {routeSaving ? (
@@ -400,7 +444,24 @@ export default function Sidebar({
 
         {activeTool === 'measure' && (
           <div className="sidebar-panel">
-            <div className="sidebar-panel-title">Zapisane trasy</div>
+            <div className="sidebar-panel-title-row">
+              <span className="sidebar-panel-title">Zapisane trasy</span>
+              <button
+                className="sidebar-import-btn"
+                onClick={() => importFileInputRef.current?.click()}
+                title="Importuj trasę z pliku JSON"
+              >
+                Importuj
+              </button>
+              <input
+                ref={importFileInputRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={handleImportFileChange}
+                style={{ display: 'none' }}
+              />
+            </div>
+            {importError && <p className="sidebar-error">{importError}</p>}
             {savedMeasurements.length === 0 ? (
               <p className="sidebar-panel-empty">Brak zapisanych tras</p>
             ) : (

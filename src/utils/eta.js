@@ -1,5 +1,7 @@
 import { segmentNm } from './distance'
 
+export const DEFAULT_SPEED_KN = 10
+
 export function computeETAs(points, speeds, departureTime) {
   if (!departureTime || points.length < 1) return []
   const [hStr, mStr] = departureTime.split(':')
@@ -11,7 +13,8 @@ export function computeETAs(points, speeds, departureTime) {
   for (let i = 0; i + 1 < points.length; i++) {
     const prev = times[i]
     if (prev == null) { times.push(null); continue }
-    const spd = parseFloat(speeds?.[i])
+    const raw = speeds?.[i]
+    const spd = (raw === undefined || raw === null) ? DEFAULT_SPEED_KN : parseFloat(raw)
     if (!spd || spd <= 0) { times.push(null); continue }
     const dist = segmentNm(points[i], points[i + 1])
     const stopMin = points[i].type === 'stop' ? (parseFloat(points[i].stopDuration) || 0) : 0

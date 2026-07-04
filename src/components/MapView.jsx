@@ -334,12 +334,37 @@ function buildFuelPopupHTML(props) {
 }
 
 function buildMeasurePointPopupHTML(props) {
-  const name = (props && props.name) ? escapeHTML(props.name) : 'Punkt trasy'
-  const timeLabel = (props && props.timeLabel) ? escapeHTML(props.timeLabel) : ''
+  const isStop = props.type === 'stop'
+  const icon = isStop ? '⚓' : '⛵'
+  const name = props.name ? escapeHTML(props.name) : 'Punkt trasy'
+  const lines = []
+
+  if (isStop) {
+    if (props.stopNote) lines.push(escapeHTML(props.stopNote))
+    const dur = parseFloat(props.stopDuration)
+    if (dur > 0) lines.push(`Czas postoju: <strong>${dur} min</strong>`)
+  }
+
+  if (props.timeKind) {
+    lines.push(`${escapeHTML(props.timeKind)}: <strong>${escapeHTML(props.timeValue)}</strong>`)
+  }
+
+  if (props.fuelCapacity != null) {
+    const levelText = props.fuelLevel != null
+      ? `${Math.round(props.fuelLevel)} l / ${Math.round(props.fuelCapacity)} l`
+      : '—'
+    const pct = props.fuelLevel != null
+      ? Math.max(0, Math.min(100, (props.fuelLevel / props.fuelCapacity) * 100))
+      : 0
+    lines.push(
+      `<div class="popup-fuel-line">Stan paliwa: <strong>${levelText}</strong>` +
+      `<span class="popup-fuel-gauge"><span class="popup-fuel-gauge-fill" style="width:${pct}%"></span></span></div>`
+    )
+  }
 
   return `<div class="seamark-popup">
-    <div class="seamark-popup-title">${name}</div>
-    ${timeLabel ? `<div class="seamark-popup-type">${timeLabel}</div>` : ''}
+    <div class="seamark-popup-title">${icon} ${name}</div>
+    ${lines.length ? `<div class="seamark-popup-details">${lines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
   </div>`
 }
 
@@ -623,7 +648,7 @@ function buildAreaPopupHTML(props) {
 }
 
 export default function MapView({
-  isMeasuring, measurePoints, measureEtas, onAddPoint,
+  isMeasuring, measurePoints, measureEtas, measureFuel, measureFuelLevels, onAddPoint,
   seamarksVisible, seamarksData,
   fuelVisible, fuelData, isPlacingFuel, onPlaceFuelPoint,
   marinasVisible, marinasData, isPlacingMarina, onPlaceMarinaPoint,
@@ -1140,6 +1165,9 @@ export default function MapView({
       type: 'Feature',
       geometry: { type: 'LineString', coordinates: measurePoints.map(p => [p.lng, p.lat]) },
     })
+    const fuelCapacity = parseFloat(measureFuel?.capacity)
+    const fuelConfigured = !isNaN(fuelCapacity) && fuelCapacity > 0
+
     map.getSource('measure-points')?.setData({
       type: 'FeatureCollection',
       features: measurePoints.map((p, i) => {
@@ -1147,12 +1175,20 @@ export default function MapView({
         const seq = p.seq ?? (i + 1)
         const name = p.name?.trim() || (isStop ? `Postój ${seq}` : `Punkt ${seq}`)
         const t = measureEtas?.[i]
-        const timeLabel = i === 0
-          ? `Odjazd: ${t != null ? fmtTime(t) : '—'}`
-          : `Przybycie: ${t != null ? fmtTime(t) : '—'}`
+        const fuelLevel = fuelConfigured ? (measureFuelLevels?.[i] ?? null) : null
         return {
           type: 'Feature',
-          properties: { type: p.type, name, timeLabel, seq },
+          properties: {
+            type: p.type,
+            name,
+            seq,
+            stopNote: p.stopNote || '',
+            stopDuration: p.stopDuration || '',
+            timeKind: i === 0 ? 'Odjazd' : 'Przybycie',
+            timeValue: t != null ? fmtTime(t) : '—',
+            fuelLevel,
+            fuelCapacity: fuelConfigured ? fuelCapacity : null,
+          },
           geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
         }
       }),
@@ -1164,7 +1200,7 @@ export default function MapView({
       measurePopupRef.current = null
       measurePopupSeqRef.current = null
     }
-  }, [measurePoints, measureEtas])
+  }, [measurePoints, measureEtas, measureFuel, measureFuelLevels])
 
   // Seamarks data + visibility
   useEffect(() => {

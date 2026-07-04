@@ -70,12 +70,20 @@
 }
 
 .eta-waypoint {
-  padding: 12px 0;
-  border-bottom: 1px dashed #e2e8f0;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: #f8fafb;
+  border: 1px solid #dde4ea;
+  border-left: 4px solid #0077cc;
+  border-radius: 4px;
+}
+
+.eta-waypoint--stop {
+  border-left-color: #e53e3e;
 }
 
 .eta-waypoint:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
 /* ── Editable point title ── */
@@ -148,13 +156,8 @@
   border-left: 1.5px solid #cbd5e0;
 }
 
-.eta-type-btn--active-waypoint {
+.eta-type-btn--active {
   background: #0077cc;
-  color: #ffffff;
-}
-
-.eta-type-btn--active-stop {
-  background: #e53e3e;
   color: #ffffff;
 }
 
@@ -332,4 +335,88 @@
   text-align: right;
   border-top: 1px solid #e2e8f0;
   margin-top: 4px;
+}
+
+/* ── Fuel configuration card ── */
+.fuel-config-card {
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: #fffaf0;
+  border: 1px solid #f0e0c0;
+  border-left: 4px solid #d97706;
+  border-radius: 4px;
+}
+
+.fuel-config-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a2e3d;
+  margin-bottom: 10px;
+}
+
+.fuel-config-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.eta-fuel-input-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.eta-fuel-input {
+  border: 1.5px solid #cbd5e0;
+  padding: 4px 7px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a2e3d;
+  outline: none;
+  font-family: system-ui, sans-serif;
+  width: 68px;
+  border-radius: 0;
+  -moz-appearance: textfield;
+}
+
+.eta-fuel-input::-webkit-outer-spin-button,
+.eta-fuel-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+.eta-fuel-input:focus { border-color: #d97706; }
+
+.eta-fuel-input-unit {
+  font-size: 12px;
+  color: #607d8b;
+  font-weight: 600;
+}
+
+/* ── Per-point fuel level display ── */
+.eta-fuel-display {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.eta-fuel-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a2e3d;
+  white-space: nowrap;
+}
+
+.eta-fuel-gauge {
+  display: inline-block;
+  width: 56px;
+  height: 12px;
+  border: 1.5px solid #1a2e3d;
+  border-radius: 2px;
+  background: #ffffff;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.eta-fuel-gauge-fill {
+  display: block;
+  height: 100%;
+  background: #d97706;
 }

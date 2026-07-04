@@ -10,21 +10,24 @@ import { BUILT_IN_MARINAS, loadUserMarinas, saveUserMarinas, marinasToGeoJSON } 
 import { BUILT_IN_LOCKS, loadUserLocks, saveUserLocks, locksToGeoJSON } from './utils/customLocks'
 import { createAisStream } from './utils/aisStream'
 import { loadLocationHistory, saveLocationHistory, addPosition, filterByRange } from './utils/locationHistory'
-import { computeETAs } from './utils/eta'
+import { computeETAs, DEFAULT_SPEED_KN } from './utils/eta'
+import { computeFuelLevels } from './utils/fuel'
 
 const STORAGE_KEY = 'bay-nav-measurements'
 const AIS_LOAD_KEY = 'bay-nav-ais-last-load-ms'
 const MIN_GPS_SAVE_INTERVAL_MS = 10000
 
+const EMPTY_FUEL_CONFIG = { capacity: '', start: '', consumption: '' }
+
 function normalizePoint(p, i) {
-  if (Array.isArray(p)) return { lng: p[0], lat: p[1], type: 'waypoint', stopDuration: '', stopNote: '', name: '', seq: i + 1 }
-  return { type: 'waypoint', stopDuration: '', stopNote: '', name: '', seq: i + 1, ...p }
+  if (Array.isArray(p)) return { lng: p[0], lat: p[1], type: 'waypoint', stopDuration: '', stopNote: '', name: '', seq: i + 1, fuelOverride: '' }
+  return { type: 'waypoint', stopDuration: '', stopNote: '', name: '', seq: i + 1, fuelOverride: '', ...p }
 }
 
 function loadSaved() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    return parsed.map(m => ({ ...m, points: m.points.map(normalizePoint) }))
+    return parsed.map(m => ({ ...m, points: m.points.map(normalizePoint), fuel: m.fuel || EMPTY_FUEL_CONFIG }))
   } catch { return [] }
 }
 
@@ -36,8 +39,10 @@ export default function App() {
   const [measurePoints, setMeasurePoints] = useState([])
   const [measureSpeeds, setMeasureSpeeds] = useState([])
   const [measureDepartureTime, setMeasureDepartureTime] = useState('')
+  const [measureFuel, setMeasureFuel] = useState(EMPTY_FUEL_CONFIG)
   const [routeConfigOpen, setRouteConfigOpen] = useState(false)
   const nextPointSeqRef = useRef(1)
+  const measurePointCountRef = useRef(0)
   const [coordPoint, setCoordPoint] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [savedMeasurements, setSavedMeasurements] = useState(loadSaved)
@@ -81,6 +86,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedMeasurements))
   }, [savedMeasurements])
+
+  useEffect(() => {
+    measurePointCountRef.current = measurePoints.length
+  }, [measurePoints])
 
   // Track GPS position continuously and persist to history
   useEffect(() => {
@@ -126,6 +135,11 @@ export default function App() {
   const measureEtas = useMemo(
     () => computeETAs(measurePoints, measureSpeeds, measureDepartureTime),
     [measurePoints, measureSpeeds, measureDepartureTime]
+  )
+
+  const measureFuelLevels = useMemo(
+    () => computeFuelLevels(measurePoints, measureFuel.start, measureFuel.consumption),
+    [measurePoints, measureFuel]
   )
 
   const historyPoints = useMemo(() => {
@@ -349,6 +363,7 @@ export default function App() {
     setMeasurePoints([])
     setMeasureSpeeds([])
     setMeasureDepartureTime('')
+    setMeasureFuel(EMPTY_FUEL_CONFIG)
     setRouteConfigOpen(false)
     nextPointSeqRef.current = 1
     setCoordPoint(null)
@@ -361,11 +376,19 @@ export default function App() {
 
   const handleAddPoint = useCallback((lngLat) => {
     const seq = nextPointSeqRef.current++
-    setMeasurePoints(pts => [...pts, { ...lngLat, type: 'waypoint', stopDuration: '', stopNote: '', name: '', seq }])
+    const createsNewSegment = measurePointCountRef.current >= 1
+    setMeasurePoints(pts => [...pts, { ...lngLat, type: 'waypoint', stopDuration: '', stopNote: '', name: '', seq, fuelOverride: '' }])
+    if (createsNewSegment) {
+      setMeasureSpeeds(speeds => [...speeds, DEFAULT_SPEED_KN])
+    }
   }, [])
 
   function handleMeasurePointChange(index, patch) {
     setMeasurePoints(pts => pts.map((pt, i) => i === index ? { ...pt, ...patch } : pt))
+  }
+
+  function handleMeasureFuelChange(patch) {
+    setMeasureFuel(prev => ({ ...prev, ...patch }))
   }
 
   function handleDeleteMeasurePoint(index) {
@@ -387,14 +410,14 @@ export default function App() {
     if (editingId) {
       setSavedMeasurements(prev =>
         prev.map(m => m.id === editingId
-          ? { ...m, name, points: measurePoints, speeds: measureSpeeds, departureTime: measureDepartureTime, updatedAt: now }
+          ? { ...m, name, points: measurePoints, speeds: measureSpeeds, departureTime: measureDepartureTime, fuel: measureFuel, updatedAt: now }
           : m)
       )
     } else {
       const id = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)
       setSavedMeasurements(prev => [...prev, {
         id, name, points: measurePoints,
-        speeds: measureSpeeds, departureTime: measureDepartureTime,
+        speeds: measureSpeeds, departureTime: measureDepartureTime, fuel: measureFuel,
         createdAt: now, updatedAt: now,
       }])
       setEditingId(id)
@@ -406,6 +429,7 @@ export default function App() {
     setMeasurePoints(m.points)
     setMeasureSpeeds(m.speeds || [])
     setMeasureDepartureTime(m.departureTime || '')
+    setMeasureFuel(m.fuel || EMPTY_FUEL_CONFIG)
     nextPointSeqRef.current = Math.max(0, ...m.points.map(p => p.seq || 0)) + 1
     setEditingId(m.id)
     setMenuOpen(false)
@@ -414,6 +438,28 @@ export default function App() {
   function handleDeleteMeasurement(id) {
     setSavedMeasurements(prev => prev.filter(m => m.id !== id))
     if (editingId === id) { setMeasurePoints([]); setEditingId(null) }
+  }
+
+  function handleImportMeasurement(data) {
+    if (!data || !Array.isArray(data.points) || data.points.length === 0) return false
+    const now = Date.now()
+    const points = data.points.map(normalizePoint)
+    const id = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)
+    const name = (typeof data.name === 'string' && data.name.trim())
+      || `Zaimportowana trasa ${new Date(now).toLocaleDateString('pl-PL')}`
+    const speeds = Array.isArray(data.speeds) ? data.speeds : []
+    const departureTime = typeof data.departureTime === 'string' ? data.departureTime : ''
+    const fuel = data.fuel || EMPTY_FUEL_CONFIG
+
+    setSavedMeasurements(prev => [...prev, { id, name, points, speeds, departureTime, fuel, createdAt: now, updatedAt: now }])
+    setActiveTool('measure')
+    setMeasurePoints(points)
+    setMeasureSpeeds(speeds)
+    setMeasureDepartureTime(departureTime)
+    setMeasureFuel(fuel)
+    nextPointSeqRef.current = Math.max(0, ...points.map(p => p.seq || 0)) + 1
+    setEditingId(id)
+    return true
   }
 
   return (
@@ -454,9 +500,11 @@ export default function App() {
         measurePoints={measurePoints}
         measureSpeeds={measureSpeeds}
         measureDepartureTime={measureDepartureTime}
+        measureFuel={measureFuel}
         onSaveMeasurement={handleSaveMeasurement}
         onOpenRouteConfig={() => setRouteConfigOpen(true)}
         onUndoLastPoint={handleUndoLastPoint}
+        onImportMeasurement={handleImportMeasurement}
         historyRange={historyRange}
         historyPointCount={historyPoints.length}
         onHistoryRangeChange={handleHistoryRangeChange}
@@ -467,6 +515,8 @@ export default function App() {
           isMeasuring={activeTool === 'measure'}
           measurePoints={measurePoints}
           measureEtas={measureEtas}
+          measureFuel={measureFuel}
+          measureFuelLevels={measureFuelLevels}
           onAddPoint={handleAddPoint}
           seamarksVisible={visibleLayers.seamarks}
           seamarksData={seamarksData}
@@ -556,6 +606,8 @@ export default function App() {
             onDepartureTimeChange={setMeasureDepartureTime}
             onPointChange={handleMeasurePointChange}
             onPointDelete={handleDeleteMeasurePoint}
+            fuel={measureFuel}
+            onFuelChange={handleMeasureFuelChange}
             onClose={() => setRouteConfigOpen(false)}
           />
         )}

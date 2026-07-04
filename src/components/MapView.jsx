@@ -158,34 +158,41 @@ function makeLockBridgeIcon() {
   ctx.shadowBlur = 4
   ctx.shadowOffsetY = 2
 
-  ctx.fillStyle = '#0e7490'
+  // Yellow background — same colour scheme as the fuel-station icon
+  ctx.fillStyle = '#facc15'
   ctx.fillRect(0, 0, size, size)
   ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
 
+  // Black border
   ctx.strokeStyle = '#000000'
   ctx.lineWidth = 2.5
   ctx.strokeRect(1.25, 1.25, size - 2.5, size - 2.5)
 
-  ctx.fillStyle = '#ffffff'
-  ctx.strokeStyle = '#ffffff'
+  // Black pictogram — a movable/lift bridge, as on the road-sign symbol
+  ctx.fillStyle = '#000000'
+  ctx.strokeStyle = '#000000'
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
 
-  // Left tower
-  ctx.fillRect(5, 18, 7, 19)
-  // Right tower
-  ctx.fillRect(32, 18, 7, 19)
+  // Support piers
+  ctx.fillRect(6, 24, 7, 14)
+  ctx.fillRect(31, 24, 7, 14)
 
-  // Single bridge leaf – fully raised (~70° from horizontal), hinged at right tower base
-  ctx.lineWidth = 3.5
-  ctx.beginPath()
-  ctx.moveTo(33, 36)   // hinge at base of right tower
-  ctx.lineTo(22, 8)    // top of raised leaf
-  ctx.stroke()
+  // Flat deck span (left half), from the left pier to the hinge
+  ctx.fillRect(6, 20, 18, 4)
 
-  // Hinge pivot dot
+  // Raised leaf (right half), lifted open around the hinge
   ctx.beginPath()
-  ctx.arc(33, 36, 2.5, 0, Math.PI * 2)
+  ctx.moveTo(24.5, 23.3)
+  ctx.lineTo(21.5, 20.7)
+  ctx.lineTo(34.5, 4.7)
+  ctx.lineTo(37.5, 7.3)
+  ctx.closePath()
+  ctx.fill()
+
+  // Hinge pivot
+  ctx.beginPath()
+  ctx.arc(23, 22, 2.5, 0, Math.PI * 2)
   ctx.fill()
 
   // Water line

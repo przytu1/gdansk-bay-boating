@@ -634,6 +634,8 @@ export default function MapView({
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
+  const measurePopupRef = useRef(null)
+  const measurePopupSeqRef = useRef(null)
   const isMeasuringRef = useRef(isMeasuring)
   const onAddPointRef = useRef(onAddPoint)
   const isPlacingFuelRef = useRef(isPlacingFuel)
@@ -1026,25 +1028,30 @@ export default function MapView({
         },
       })
 
-      map.on('click', 'measure-points', e => {
+      const openMeasurePointPopup = e => {
         const feature = e.features[0]
-        new mapboxgl.Popup({ maxWidth: '260px', closeButton: false, className: 'seamark-point-popup' })
+        measurePopupRef.current?.remove()
+        const popup = new mapboxgl.Popup({ maxWidth: '260px', closeButton: false, className: 'seamark-point-popup' })
           .setLngLat(feature.geometry.coordinates.slice())
           .setHTML(buildMeasurePointPopupHTML(feature.properties))
           .addTo(map)
-      })
+        popup.on('close', () => {
+          if (measurePopupRef.current === popup) {
+            measurePopupRef.current = null
+            measurePopupSeqRef.current = null
+          }
+        })
+        measurePopupRef.current = popup
+        measurePopupSeqRef.current = feature.properties.seq
+      }
+
+      map.on('click', 'measure-points', openMeasurePointPopup)
       map.on('mouseenter', 'measure-points', () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mouseleave', 'measure-points', () => {
         map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
       })
 
-      map.on('click', 'measure-stops', e => {
-        const feature = e.features[0]
-        new mapboxgl.Popup({ maxWidth: '260px', closeButton: false, className: 'seamark-point-popup' })
-          .setLngLat(feature.geometry.coordinates.slice())
-          .setHTML(buildMeasurePointPopupHTML(feature.properties))
-          .addTo(map)
-      })
+      map.on('click', 'measure-stops', openMeasurePointPopup)
       map.on('mouseenter', 'measure-stops', () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mouseleave', 'measure-stops', () => {
         map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
@@ -1079,8 +1086,20 @@ export default function MapView({
       })
     })
 
+    // Popups close themselves on the 'preclick' event (fired just before 'click'),
+    // so by the time 'click' runs the ref is already cleared — capture the
+    // pre-close state here instead, to suppress this click's other actions.
+    let popupOpenBeforeClick = false
+    map.on('preclick', () => {
+      popupOpenBeforeClick = !!measurePopupRef.current
+    })
+
     // General click — placement modes or measure points
     map.on('click', e => {
+      if (popupOpenBeforeClick) {
+        popupOpenBeforeClick = false
+        return
+      }
       if (isPlacingFuelRef.current) {
         onPlaceFuelPointRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat })
         return
@@ -1125,18 +1144,26 @@ export default function MapView({
       type: 'FeatureCollection',
       features: measurePoints.map((p, i) => {
         const isStop = p.type === 'stop'
-        const name = isStop ? (p.stopNote?.trim() || `Postój ${i + 1}`) : `Punkt ${i + 1}`
+        const seq = p.seq ?? (i + 1)
+        const name = p.name?.trim() || (isStop ? `Postój ${seq}` : `Punkt ${seq}`)
         const t = measureEtas?.[i]
         const timeLabel = i === 0
           ? `Odjazd: ${t != null ? fmtTime(t) : '—'}`
           : `Przybycie: ${t != null ? fmtTime(t) : '—'}`
         return {
           type: 'Feature',
-          properties: { type: p.type, name, timeLabel },
+          properties: { type: p.type, name, timeLabel, seq },
           geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
         }
       }),
     })
+
+    // Close the point tooltip if its point was removed (e.g. deleted from the config panel)
+    if (measurePopupSeqRef.current != null && !measurePoints.some(p => p.seq === measurePopupSeqRef.current)) {
+      measurePopupRef.current?.remove()
+      measurePopupRef.current = null
+      measurePopupSeqRef.current = null
+    }
   }, [measurePoints, measureEtas])
 
   // Seamarks data + visibility

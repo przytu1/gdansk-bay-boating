@@ -4,6 +4,7 @@
   inset: 0;
   z-index: 220;
   pointer-events: none;
+  font-family: system-ui, sans-serif;
 }
 
 .route-config-panel {
@@ -11,30 +12,32 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 400px;
-  max-width: 100%;
+  width: 560px;
+  max-width: 94vw;
   background: rgba(255, 255, 255, 0.98);
   border-left: 1px solid #dde4ea;
   box-shadow: -2px 0 14px rgba(0, 0, 0, 0.14);
   display: flex;
   flex-direction: column;
   pointer-events: auto;
+  font-family: system-ui, sans-serif;
 }
 
 .route-config-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 14px 18px;
   border-bottom: 1px solid #dde4ea;
   flex-shrink: 0;
 }
 
 .route-config-header h3 {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: #1a2e3d;
   margin: 0;
+  font-family: system-ui, sans-serif;
 }
 
 .route-config-close {
@@ -45,6 +48,7 @@
   cursor: pointer;
   padding: 6px;
   line-height: 1;
+  font-family: system-ui, sans-serif;
 }
 
 .route-config-close:hover { color: #1a2e3d; }
@@ -53,19 +57,20 @@
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 6px 16px 12px;
+  padding: 6px 18px 14px;
 }
 
 /* ── Mobile: full screen ── */
 @media (max-width: 768px) {
   .route-config-panel {
     width: 100%;
+    max-width: 100%;
     border-left: none;
   }
 }
 
 .eta-waypoint {
-  padding: 10px 0;
+  padding: 12px 0;
   border-bottom: 1px dashed #e2e8f0;
 }
 
@@ -73,27 +78,51 @@
   border-bottom: none;
 }
 
-.eta-point-row {
+/* ── Editable point title ── */
+.eta-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  flex-wrap: wrap;
-}
-
-.eta-point-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: #1a2e3d;
-  min-width: 58px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .eta-anchor-badge {
-  font-size: 13px;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.eta-title-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-bottom: 1.5px dashed transparent;
+  background: transparent;
+  padding: 3px 2px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a2e3d;
+  outline: none;
+  font-family: system-ui, sans-serif;
+}
+
+.eta-title-input::placeholder {
+  color: #1a2e3d;
+  opacity: 0.55;
+}
+
+.eta-title-input:hover {
+  border-bottom-color: #cbd5e0;
+}
+
+.eta-title-input:focus {
+  border-bottom-color: #0077cc;
+}
+
+.eta-point-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 10px 0 2px;
+  flex-wrap: wrap;
 }
 
 .eta-type-toggle {
@@ -101,14 +130,15 @@
   border: 1.5px solid #cbd5e0;
   overflow: hidden;
   flex-shrink: 0;
+  width: fit-content;
 }
 
 .eta-type-btn {
-  padding: 4px 10px;
+  padding: 5px 12px;
   border: none;
   background: #ffffff;
   color: #4a5568;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   font-family: system-ui, sans-serif;
@@ -128,21 +158,13 @@
   color: #ffffff;
 }
 
-.eta-point-time {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: 1;
-  min-width: 0;
-}
-
 .eta-delete-btn {
   flex-shrink: 0;
   background: none;
   border: none;
   color: #a0aec0;
   cursor: pointer;
-  padding: 4px;
+  padding: 6px;
   line-height: 0;
   border-radius: 4px;
   transition: background 0.12s, color 0.12s;
@@ -153,16 +175,9 @@
   color: #e53e3e;
 }
 
-.eta-meta {
-  font-size: 11px;
-  color: #607d8b;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 .eta-time-input {
   border: 1.5px solid #0077cc;
-  padding: 3px 7px;
+  padding: 4px 8px;
   font-size: 15px;
   font-weight: 700;
   color: #1a2e3d;
@@ -173,6 +188,7 @@
 }
 
 .eta-time-value {
+  display: inline-block;
   font-size: 16px;
   font-weight: 700;
   color: #0077cc;
@@ -184,37 +200,38 @@
   font-weight: 500;
 }
 
-/* ── Stop (Postój) configuration ── */
-.eta-stop-config {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  padding: 8px 0 4px 62px;
-}
-
-.eta-stop-field {
+/* ── Shared "label above value" field wrapper ── */
+.eta-seg-field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
-.eta-stop-field--note {
+.eta-seg-field--note {
   flex: 1;
-  min-width: 160px;
+  min-width: 200px;
 }
 
-.eta-stop-field-label {
-  font-size: 10px;
+.eta-field-label {
+  font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.4px;
   color: #607d8b;
 }
 
+/* ── Stop (Postój) configuration ── */
+.eta-stop-config {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding: 10px 0 2px;
+}
+
 .eta-stop-duration {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .eta-stop-duration-input {
@@ -256,16 +273,18 @@
 
 .eta-segment {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0 2px 62px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 20px;
+  padding: 12px 0 2px;
+  margin-top: 4px;
+  border-top: 1px dashed #e2e8f0;
 }
 
 .eta-speed {
   display: flex;
   align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
+  gap: 5px;
 }
 
 .eta-speed-field {
@@ -295,12 +314,13 @@
 }
 
 .eta-seg-dist {
-  font-size: 12px;
-  color: #607d8b;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a2e3d;
 }
 
 .eta-seg-dur {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: #2d7dd2;
 }

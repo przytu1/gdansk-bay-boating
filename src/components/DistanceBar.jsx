@@ -37,39 +37,59 @@ export default function DistanceBar({
           {points.map((pt, i) => {
             const isLast = i === points.length - 1
             const isStop = pt.type === 'stop'
+            const seq = pt.seq ?? (i + 1)
+            const defaultTitle = isStop ? `Postój ${seq}` : `Punkt ${seq}`
             const dist = !isLast ? segmentNm(pt, points[i + 1]) : null
             const spd = parseFloat(speeds?.[i])
             const segMin = (dist && spd > 0) ? (dist / spd) * 60 : null
 
             return (
               <div key={i} className="eta-waypoint">
-                <div className="eta-point-row">
-                  <span className="eta-point-label">
-                    {isStop && <span className="eta-anchor-badge">⚓</span>}
-                    Punkt {i + 1}
-                  </span>
+                <div className="eta-title-row">
+                  {isStop && <span className="eta-anchor-badge">⚓</span>}
+                  <input
+                    type="text"
+                    className="eta-title-input"
+                    value={pt.name ?? ''}
+                    onChange={e => onPointChange(i, { name: e.target.value })}
+                    placeholder={defaultTitle}
+                  />
+                  <button
+                    type="button"
+                    className="eta-delete-btn"
+                    onClick={() => onPointDelete(i)}
+                    aria-label={`Usuń ${pt.name?.trim() || defaultTitle}`}
+                    title="Usuń punkt"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
 
-                  <div className="eta-type-toggle">
-                    <button
-                      type="button"
-                      className={`eta-type-btn${!isStop ? ' eta-type-btn--active-waypoint' : ''}`}
-                      onClick={() => onPointChange(i, { type: 'waypoint' })}
-                    >
-                      Punkt
-                    </button>
-                    <button
-                      type="button"
-                      className={`eta-type-btn${isStop ? ' eta-type-btn--active-stop' : ''}`}
-                      onClick={() => onPointChange(i, { type: 'stop' })}
-                    >
-                      Postój
-                    </button>
+                <div className="eta-point-row">
+                  <div className="eta-seg-field">
+                    <span className="eta-field-label">Typ punktu</span>
+                    <div className="eta-type-toggle">
+                      <button
+                        type="button"
+                        className={`eta-type-btn${!isStop ? ' eta-type-btn--active-waypoint' : ''}`}
+                        onClick={() => onPointChange(i, { type: 'waypoint' })}
+                      >
+                        W ruchu
+                      </button>
+                      <button
+                        type="button"
+                        className={`eta-type-btn${isStop ? ' eta-type-btn--active-stop' : ''}`}
+                        onClick={() => onPointChange(i, { type: 'stop' })}
+                      >
+                        Postój
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="eta-point-time">
+                  <div className="eta-seg-field">
                     {i === 0 ? (
                       <>
-                        <span className="eta-meta">Odjazd:</span>
+                        <span className="eta-field-label">Godzina odjazdu</span>
                         <input
                           type="time"
                           className="eta-time-input"
@@ -79,29 +99,19 @@ export default function DistanceBar({
                       </>
                     ) : (
                       <>
-                        <span className="eta-meta">Przybycie:</span>
+                        <span className="eta-field-label">Godzina przybycia</span>
                         <span className={`eta-time-value${etas[i] == null ? ' eta-time-value--unknown' : ''}`}>
                           {fmtTime(etas[i])}
                         </span>
                       </>
                     )}
                   </div>
-
-                  <button
-                    type="button"
-                    className="eta-delete-btn"
-                    onClick={() => onPointDelete(i)}
-                    aria-label={`Usuń punkt ${i + 1}`}
-                    title="Usuń punkt"
-                  >
-                    <TrashIcon />
-                  </button>
                 </div>
 
                 {isStop && (
                   <div className="eta-stop-config">
-                    <label className="eta-stop-field">
-                      <span className="eta-stop-field-label">Czas postoju</span>
+                    <label className="eta-seg-field">
+                      <span className="eta-field-label">Czas postoju</span>
                       <span className="eta-stop-duration">
                         <input
                           type="number"
@@ -116,8 +126,8 @@ export default function DistanceBar({
                         <span className="eta-stop-duration-unit">min</span>
                       </span>
                     </label>
-                    <label className="eta-stop-field eta-stop-field--note">
-                      <span className="eta-stop-field-label">Opis</span>
+                    <label className="eta-seg-field eta-seg-field--note">
+                      <span className="eta-field-label">Opis postoju</span>
                       <input
                         type="text"
                         className="eta-stop-note-input"
@@ -131,23 +141,32 @@ export default function DistanceBar({
 
                 {!isLast && (
                   <div className="eta-segment">
-                    <div className="eta-speed">
-                      <input
-                        type="number"
-                        className="eta-speed-field"
-                        value={speeds?.[i] ?? ''}
-                        onChange={e => onSpeedChange(i, e.target.value)}
-                        placeholder="—"
-                        min="0.1"
-                        max="99"
-                        step="0.5"
-                        inputMode="decimal"
-                      />
-                      <span className="eta-speed-unit">kn</span>
+                    <div className="eta-seg-field">
+                      <span className="eta-field-label">Prędkość na odcinku</span>
+                      <span className="eta-speed">
+                        <input
+                          type="number"
+                          className="eta-speed-field"
+                          value={speeds?.[i] ?? ''}
+                          onChange={e => onSpeedChange(i, e.target.value)}
+                          placeholder="—"
+                          min="0.1"
+                          max="99"
+                          step="0.5"
+                          inputMode="decimal"
+                        />
+                        <span className="eta-speed-unit">kn</span>
+                      </span>
                     </div>
-                    <span className="eta-seg-dist">{dist.toFixed(2)} NM</span>
+                    <div className="eta-seg-field">
+                      <span className="eta-field-label">Długość odcinka</span>
+                      <span className="eta-seg-dist">{dist.toFixed(2)} NM</span>
+                    </div>
                     {segMin != null && (
-                      <span className="eta-seg-dur">{fmtDuration(segMin)}</span>
+                      <div className="eta-seg-field">
+                        <span className="eta-field-label">Czas przejścia</span>
+                        <span className="eta-seg-dur">{fmtDuration(segMin)}</span>
+                      </div>
                     )}
                   </div>
                 )}

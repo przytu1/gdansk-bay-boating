@@ -16,9 +16,9 @@ const STORAGE_KEY = 'bay-nav-measurements'
 const AIS_LOAD_KEY = 'bay-nav-ais-last-load-ms'
 const MIN_GPS_SAVE_INTERVAL_MS = 10000
 
-function normalizePoint(p) {
-  if (Array.isArray(p)) return { lng: p[0], lat: p[1], type: 'waypoint', stopDuration: '', stopNote: '' }
-  return { type: 'waypoint', stopDuration: '', stopNote: '', ...p }
+function normalizePoint(p, i) {
+  if (Array.isArray(p)) return { lng: p[0], lat: p[1], type: 'waypoint', stopDuration: '', stopNote: '', name: '', seq: i + 1 }
+  return { type: 'waypoint', stopDuration: '', stopNote: '', name: '', seq: i + 1, ...p }
 }
 
 function loadSaved() {
@@ -37,6 +37,7 @@ export default function App() {
   const [measureSpeeds, setMeasureSpeeds] = useState([])
   const [measureDepartureTime, setMeasureDepartureTime] = useState('')
   const [routeConfigOpen, setRouteConfigOpen] = useState(false)
+  const nextPointSeqRef = useRef(1)
   const [coordPoint, setCoordPoint] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [savedMeasurements, setSavedMeasurements] = useState(loadSaved)
@@ -349,6 +350,7 @@ export default function App() {
     setMeasureSpeeds([])
     setMeasureDepartureTime('')
     setRouteConfigOpen(false)
+    nextPointSeqRef.current = 1
     setCoordPoint(null)
     setEditingId(null)
   }
@@ -358,7 +360,8 @@ export default function App() {
   }
 
   const handleAddPoint = useCallback((lngLat) => {
-    setMeasurePoints(pts => [...pts, { ...lngLat, type: 'waypoint', stopDuration: '', stopNote: '' }])
+    const seq = nextPointSeqRef.current++
+    setMeasurePoints(pts => [...pts, { ...lngLat, type: 'waypoint', stopDuration: '', stopNote: '', name: '', seq }])
   }, [])
 
   function handleMeasurePointChange(index, patch) {
@@ -380,10 +383,11 @@ export default function App() {
   }
 
   function handleSaveMeasurement(name) {
+    const now = Date.now()
     if (editingId) {
       setSavedMeasurements(prev =>
         prev.map(m => m.id === editingId
-          ? { ...m, name, points: measurePoints, speeds: measureSpeeds, departureTime: measureDepartureTime }
+          ? { ...m, name, points: measurePoints, speeds: measureSpeeds, departureTime: measureDepartureTime, updatedAt: now }
           : m)
       )
     } else {
@@ -391,7 +395,7 @@ export default function App() {
       setSavedMeasurements(prev => [...prev, {
         id, name, points: measurePoints,
         speeds: measureSpeeds, departureTime: measureDepartureTime,
-        createdAt: Date.now(),
+        createdAt: now, updatedAt: now,
       }])
       setEditingId(id)
     }
@@ -402,6 +406,7 @@ export default function App() {
     setMeasurePoints(m.points)
     setMeasureSpeeds(m.speeds || [])
     setMeasureDepartureTime(m.departureTime || '')
+    nextPointSeqRef.current = Math.max(0, ...m.points.map(p => p.seq || 0)) + 1
     setEditingId(m.id)
     setMenuOpen(false)
   }

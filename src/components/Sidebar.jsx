@@ -105,12 +105,19 @@ export default function Sidebar({
 }) {
   const [routeSaving, setRouteSaving] = useState(false)
   const [routeName, setRouteName] = useState('')
+  const [routeJustSaved, setRouteJustSaved] = useState(false)
 
   const editingMeasurement = savedMeasurements.find(m => m.id === editingId) ?? null
 
   useEffect(() => {
     if (editingMeasurement) setRouteName(editingMeasurement.name)
   }, [editingMeasurement?.id])
+
+  useEffect(() => {
+    if (!routeJustSaved) return
+    const t = setTimeout(() => setRouteJustSaved(false), 2500)
+    return () => clearTimeout(t)
+  }, [routeJustSaved])
 
   function handleNavClick(item) {
     if (item.kind === 'tool') onToolChange(item.id)
@@ -123,7 +130,11 @@ export default function Sidebar({
 
   function handleRouteSaveClick() {
     if (!routeSaving) { setRouteSaving(true); return }
-    if (routeName.trim()) { onSaveMeasurement(routeName.trim()); setRouteSaving(false) }
+    if (routeName.trim()) {
+      onSaveMeasurement(routeName.trim())
+      setRouteSaving(false)
+      setRouteJustSaved(true)
+    }
   }
 
   const routeKm = measurePoints?.length ? totalDistanceKm(measurePoints) : 0
@@ -379,6 +390,8 @@ export default function Sidebar({
                     {editingMeasurement ? `Aktualizuj „${editingMeasurement.name}"` : 'Zapisz trasę'}
                   </button>
                 )}
+
+                {routeJustSaved && <p className="route-edit-saved-msg">✓ Zapisano</p>}
               </>
             )}
             <div className="sidebar-panel-divider" />
@@ -404,6 +417,11 @@ export default function Sidebar({
                         &nbsp;·&nbsp;
                         {(totalDistanceKm(m.points) / 1.852).toFixed(2)} NM
                       </span>
+                      {(m.updatedAt || m.createdAt) && (
+                        <span className="sidebar-saved-updated">
+                          Ostatni zapis: {formatCacheDate(m.updatedAt || m.createdAt)}
+                        </span>
+                      )}
                     </button>
                     <button
                       className="sidebar-saved-delete"

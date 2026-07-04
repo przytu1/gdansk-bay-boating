@@ -107,6 +107,11 @@ export function navStatusLabel(code) {
   return NAV_STATUS[code] || null
 }
 
+// Nav-status codes that mean the vessel isn't underway, regardless of speed
+// (anchored / moored / aground) — used to pick the stationary marker shape.
+const STATIONARY_NAV_CODES = new Set([1, 5, 6])
+const MOVING_SPEED_THRESHOLD_KN = 0.5
+
 // ── Stream factory ──────────────────────────────────────────────────────────
 export function createAisStream({ apiKey, onData, onStatus }) {
   const vessels = new Map()
@@ -151,6 +156,12 @@ export function createAisStream({ apiKey, onData, onStatus }) {
         : (typeof v.cog === 'number' && v.cog !== 360) ? v.cog
         : null
 
+      const navCode = typeof v.navStatus === 'number' ? v.navStatus : null
+      const sogVal = (typeof v.sog === 'number' && v.sog < 102.3) ? v.sog : null
+      const isMoving = STATIONARY_NAV_CODES.has(navCode)
+        ? false
+        : (sogVal != null ? sogVal >= MOVING_SPEED_THRESHOLD_KN : true)
+
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [v.lng, v.lat] },
@@ -159,10 +170,10 @@ export function createAisStream({ apiKey, onData, onStatus }) {
           name: v.name || '',
           typeLabel: info.label,
           typeCode: info.code,
-          iconKey: `vessel-${info.category}`,
+          iconKey: `vessel-${info.category}-${isMoving ? 'moving' : 'anchored'}`,
           rotation: heading == null ? 0 : heading,
           hasHeading: heading != null,
-          sog: (typeof v.sog === 'number' && v.sog < 102.3) ? v.sog : null,
+          sog: sogVal,
           cog: (typeof v.cog === 'number' && v.cog !== 360) ? v.cog : null,
           heading: (typeof v.heading === 'number' && v.heading !== 511) ? v.heading : null,
           navStatus: navStatusLabel(v.navStatus),

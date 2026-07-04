@@ -255,9 +255,9 @@ function makeFuelIcon() {
   return ctx.getImageData(0, 0, size, size)
 }
 
-// Ship-shaped marker (pentagon hull with a pointed bow), drawn pointing north
-// so Mapbox `icon-rotate` aligns it with course/heading. One per category colour.
-function makeVesselIcon(color) {
+// Underway marker: a concave-quadrilateral arrow (dart/deltoid), drawn pointing
+// north so Mapbox `icon-rotate` aligns it with course/heading. One per category colour.
+function makeVesselArrowIcon(color) {
   const size = 40
   const c = document.createElement('canvas')
   c.width = size
@@ -270,10 +270,42 @@ function makeVesselIcon(color) {
 
   ctx.beginPath()
   ctx.moveTo(20, 3)    // bow tip
-  ctx.lineTo(31, 16)   // starboard shoulder
-  ctx.lineTo(29, 37)   // starboard stern
-  ctx.lineTo(11, 37)   // port stern
-  ctx.lineTo(9, 16)    // port shoulder
+  ctx.lineTo(32, 35)   // starboard rear corner
+  ctx.lineTo(20, 27)   // concave notch (stern, pulled in toward the bow)
+  ctx.lineTo(8, 35)    // port rear corner
+  ctx.closePath()
+
+  ctx.fillStyle = color
+  ctx.fill()
+
+  ctx.shadowBlur = 0
+  ctx.shadowOffsetY = 0
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 2
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+
+  return ctx.getImageData(0, 0, size, size)
+}
+
+// Stationary marker (anchored / moored / aground): a square rotated 45°
+// (rhombus), so it reads clearly as "not moving" next to the arrow shape.
+function makeVesselDiamondIcon(color) {
+  const size = 40
+  const c = document.createElement('canvas')
+  c.width = size
+  c.height = size
+  const ctx = c.getContext('2d')
+
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'
+  ctx.shadowBlur = 3
+  ctx.shadowOffsetY = 1
+
+  ctx.beginPath()
+  ctx.moveTo(20, 5)    // top
+  ctx.lineTo(35, 20)   // right
+  ctx.lineTo(20, 35)   // bottom
+  ctx.lineTo(5, 20)    // left
   ctx.closePath()
 
   ctx.fillStyle = color
@@ -949,7 +981,8 @@ export default function MapView({
 
       // ── Live vessel positions (AIS) ─────────────────────────────
       Object.entries(SHIP_CATEGORIES).forEach(([cat, { color }]) => {
-        map.addImage(`vessel-${cat}`, makeVesselIcon(color))
+        map.addImage(`vessel-${cat}-moving`, makeVesselArrowIcon(color))
+        map.addImage(`vessel-${cat}-anchored`, makeVesselDiamondIcon(color))
       })
 
       map.addSource('vessels', {

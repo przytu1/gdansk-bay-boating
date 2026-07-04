@@ -1,23 +1,25 @@
 const STORAGE_KEY = 'bay-nav-custom-fuel-v1'
 
+// Coordinates given as degrees + decimal minutes (DMM) by the user, converted
+// to decimal degrees at 6 decimal places (~0.11 m precision), July 2026.
 export const BUILT_IN_FUEL_STATIONS = [
   {
     id: 'builtin-mol-gdansk',
     name: 'MOL Gdańsk',
     info: 'Stacja paliw wodnych – Marina Gdańsk\nOlej napędowy, benzyna\nGodziny: 8:00–20:00, 7 dni w tygodniu',
-    lat: 54.3489, lng: 18.6599, _builtin: true,
+    lat: 54.354302, lng: 18.665888, _builtin: true,
   },
   {
     id: 'builtin-orlen-gdynia',
     name: 'Orlen Gdynia',
     info: 'Stacja paliw wodnych – Marina Gdynia\nOlej napędowy, benzyna\nGodziny: 8:00–20:00, 7 dni w tygodniu',
-    lat: 54.5170, lng: 18.5526, _builtin: true,
+    lat: 54.517703, lng: 18.554828, _builtin: true,
   },
   {
     id: 'builtin-orlen-puck',
     name: 'Orlen Puck',
     info: 'Stacja paliw wodnych – Marina Puck\nOlej napędowy, benzyna\nGodziny: 9:00–18:00, 7 dni w tygodniu',
-    lat: 54.7238, lng: 18.4128, _builtin: true,
+    lat: 54.722590, lng: 18.417313, _builtin: true,
   },
   {
     id: 'builtin-stacja-tolkmicko',

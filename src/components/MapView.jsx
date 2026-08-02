@@ -147,6 +147,9 @@ function makeStopIcon() {
   return ctx.getImageData(0, 0, size, size)
 }
 
+// Pictogram matches the Polish road warning sign A-13 "Ruchomy most"
+// (movable bridge): tapered piers, one bascule leaf raised off its hinge
+// over an open gap, water waves lapping the pier bases.
 function makeLockBridgeIcon() {
   const size = 44
   const c = document.createElement('canvas')
@@ -167,40 +170,58 @@ function makeLockBridgeIcon() {
   ctx.lineWidth = 2.5
   ctx.strokeRect(1.25, 1.25, size - 2.5, size - 2.5)
 
-  // Black pictogram — a movable/lift bridge, as on the road-sign symbol
   ctx.fillStyle = '#000000'
   ctx.strokeStyle = '#000000'
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
 
-  // Support piers
-  ctx.fillRect(6, 24, 7, 14)
-  ctx.fillRect(31, 24, 7, 14)
-
-  // Flat deck span (left half), from the left pier to the hinge
-  ctx.fillRect(6, 20, 18, 4)
-
-  // Raised leaf (right half), lifted open around the hinge
+  // Left pier — tapered trapezoid, vertical inner edge facing the gap
   ctx.beginPath()
-  ctx.moveTo(24.5, 23.3)
-  ctx.lineTo(21.5, 20.7)
-  ctx.lineTo(34.5, 4.7)
-  ctx.lineTo(37.5, 7.3)
+  ctx.moveTo(6, 36)
+  ctx.lineTo(14, 36)
+  ctx.lineTo(14, 24)
+  ctx.lineTo(10, 24)
   ctx.closePath()
   ctx.fill()
 
-  // Hinge pivot
+  // Right pier — mirrored trapezoid
   ctx.beginPath()
-  ctx.arc(23, 22, 2.5, 0, Math.PI * 2)
+  ctx.moveTo(38, 36)
+  ctx.lineTo(30, 36)
+  ctx.lineTo(30, 24)
+  ctx.lineTo(34, 24)
+  ctx.closePath()
   ctx.fill()
 
-  // Water line
-  ctx.lineWidth = 2
+  // Bascule leaf, hinged at the left pier and raised over the open gap
   ctx.beginPath()
-  ctx.moveTo(4, 40); ctx.lineTo(40, 40)
-  ctx.stroke()
+  ctx.moveTo(27, 10)
+  ctx.lineTo(14, 24)
+  ctx.lineTo(12, 21)
+  ctx.lineTo(25, 7)
+  ctx.closePath()
+  ctx.fill()
+
+  // Water waves lapping the pier bases
+  ctx.lineWidth = 1.6
+  drawWave(ctx, 4, 40, 30, 1.6)
+  drawWave(ctx, 4, 40, 35, 1.6)
 
   return ctx.getImageData(0, 0, size, size)
+}
+
+function drawWave(ctx, xStart, xEnd, y, amplitude) {
+  const segments = 4
+  const segW = (xEnd - xStart) / segments
+  ctx.beginPath()
+  ctx.moveTo(xStart, y)
+  for (let i = 0; i < segments; i++) {
+    const x1 = xStart + i * segW + segW / 2
+    const x2 = xStart + (i + 1) * segW
+    const cpY = y + (i % 2 === 0 ? -amplitude : amplitude)
+    ctx.quadraticCurveTo(x1, cpY, x2, y)
+  }
+  ctx.stroke()
 }
 
 function makeFuelIcon() {

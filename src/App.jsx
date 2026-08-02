@@ -4,6 +4,7 @@ import MapView from './components/MapView'
 import DistanceBar from './components/DistanceBar'
 import CoordBar from './components/CoordBar'
 import FuelStationForm from './components/FuelStationForm'
+import RouteMarkerForm from './components/RouteMarkerForm'
 import OfflineAreaForm from './components/OfflineAreaForm'
 import { fetchSeamarks, getSeamarksCacheInfo, clearSeamarksCache } from './utils/seamarks'
 import { BUILT_IN_FUEL_STATIONS, loadCustomFuelStations, saveCustomFuelStations, stationsToGeoJSON } from './utils/customFuel'
@@ -27,7 +28,12 @@ function normalizePoint(p, i) {
 function loadSaved() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    return parsed.map(m => ({ ...m, points: m.points.map(normalizePoint), fuel: m.fuel || EMPTY_FUEL_CONFIG }))
+    return parsed.map(m => ({
+      ...m,
+      points: m.points.map(normalizePoint),
+      fuel: m.fuel || EMPTY_FUEL_CONFIG,
+      markers: Array.isArray(m.markers) ? m.markers : [],
+    }))
   } catch { return [] }
 }
 
@@ -40,6 +46,9 @@ export default function App() {
   const [measureSpeeds, setMeasureSpeeds] = useState([])
   const [measureDepartureTime, setMeasureDepartureTime] = useState('')
   const [measureFuel, setMeasureFuel] = useState(EMPTY_FUEL_CONFIG)
+  const [measureMode, setMeasureMode] = useState('route')
+  const [measureMarkers, setMeasureMarkers] = useState([])
+  const [pendingMarkerPoint, setPendingMarkerPoint] = useState(null)
   const [routeConfigOpen, setRouteConfigOpen] = useState(false)
   const nextPointSeqRef = useRef(1)
   const measurePointCountRef = useRef(0)
@@ -376,6 +385,9 @@ export default function App() {
     setMeasureSpeeds([])
     setMeasureDepartureTime('')
     setMeasureFuel(EMPTY_FUEL_CONFIG)
+    setMeasureMode('route')
+    setMeasureMarkers([])
+    setPendingMarkerPoint(null)
     setRouteConfigOpen(false)
     nextPointSeqRef.current = 1
     setCoordPoint(null)
@@ -417,19 +429,45 @@ export default function App() {
     setMeasureSpeeds(speeds => speeds.slice(0, -1))
   }
 
+  function handleAddMeasureMarkerPoint(point) {
+    setPendingMarkerPoint(point)
+  }
+
+  function handleSaveMeasureMarker({ title, icon }) {
+    const point = pendingMarkerPoint
+    if (!point) return
+    const newMarker = {
+      id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
+      lng: point.lng,
+      lat: point.lat,
+      icon,
+      title: title || '',
+    }
+    setMeasureMarkers(prev => [...prev, newMarker])
+    setPendingMarkerPoint(null)
+  }
+
+  function handleCancelMeasureMarker() {
+    setPendingMarkerPoint(null)
+  }
+
+  function handleDeleteMeasureMarker(id) {
+    setMeasureMarkers(prev => prev.filter(m => m.id !== id))
+  }
+
   function handleSaveMeasurement(name) {
     const now = Date.now()
     if (editingId) {
       setSavedMeasurements(prev =>
         prev.map(m => m.id === editingId
-          ? { ...m, name, points: measurePoints, speeds: measureSpeeds, departureTime: measureDepartureTime, fuel: measureFuel, updatedAt: now }
+          ? { ...m, name, points: measurePoints, speeds: measureSpeeds, departureTime: measureDepartureTime, fuel: measureFuel, markers: measureMarkers, updatedAt: now }
           : m)
       )
     } else {
       const id = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)
       setSavedMeasurements(prev => [...prev, {
         id, name, points: measurePoints,
-        speeds: measureSpeeds, departureTime: measureDepartureTime, fuel: measureFuel,
+        speeds: measureSpeeds, departureTime: measureDepartureTime, fuel: measureFuel, markers: measureMarkers,
         createdAt: now, updatedAt: now,
       }])
       setEditingId(id)
@@ -442,6 +480,9 @@ export default function App() {
     setMeasureSpeeds(m.speeds || [])
     setMeasureDepartureTime(m.departureTime || '')
     setMeasureFuel(m.fuel || EMPTY_FUEL_CONFIG)
+    setMeasureMarkers(m.markers || [])
+    setMeasureMode('route')
+    setPendingMarkerPoint(null)
     nextPointSeqRef.current = Math.max(0, ...m.points.map(p => p.seq || 0)) + 1
     setEditingId(m.id)
     setMenuOpen(false)
@@ -449,7 +490,7 @@ export default function App() {
 
   function handleDeleteMeasurement(id) {
     setSavedMeasurements(prev => prev.filter(m => m.id !== id))
-    if (editingId === id) { setMeasurePoints([]); setEditingId(null) }
+    if (editingId === id) { setMeasurePoints([]); setMeasureMarkers([]); setEditingId(null) }
   }
 
   function handleImportMeasurement(data) {
@@ -462,13 +503,17 @@ export default function App() {
     const speeds = Array.isArray(data.speeds) ? data.speeds : []
     const departureTime = typeof data.departureTime === 'string' ? data.departureTime : ''
     const fuel = data.fuel || EMPTY_FUEL_CONFIG
+    const markers = Array.isArray(data.markers) ? data.markers : []
 
-    setSavedMeasurements(prev => [...prev, { id, name, points, speeds, departureTime, fuel, createdAt: now, updatedAt: now }])
+    setSavedMeasurements(prev => [...prev, { id, name, points, speeds, departureTime, fuel, markers, createdAt: now, updatedAt: now }])
     setActiveTool('measure')
     setMeasurePoints(points)
     setMeasureSpeeds(speeds)
     setMeasureDepartureTime(departureTime)
     setMeasureFuel(fuel)
+    setMeasureMarkers(markers)
+    setMeasureMode('route')
+    setPendingMarkerPoint(null)
     nextPointSeqRef.current = Math.max(0, ...points.map(p => p.seq || 0)) + 1
     setEditingId(id)
     return true
@@ -510,6 +555,9 @@ export default function App() {
         measureSpeeds={measureSpeeds}
         measureDepartureTime={measureDepartureTime}
         measureFuel={measureFuel}
+        measureMode={measureMode}
+        onMeasureModeChange={setMeasureMode}
+        measureMarkers={measureMarkers}
         onSaveMeasurement={handleSaveMeasurement}
         onOpenRouteConfig={() => setRouteConfigOpen(true)}
         onUndoLastPoint={handleUndoLastPoint}
@@ -531,6 +579,10 @@ export default function App() {
           measureFuel={measureFuel}
           measureFuelLevels={measureFuelLevels}
           onAddPoint={handleAddPoint}
+          measureMode={measureMode}
+          measureMarkers={measureMarkers}
+          onAddMeasureMarkerPoint={handleAddMeasureMarkerPoint}
+          onDeleteMeasureMarker={handleDeleteMeasureMarker}
           seamarksVisible={visibleLayers.seamarks}
           seamarksData={seamarksData}
           fuelVisible={visibleLayers.fuel}
@@ -611,6 +663,18 @@ export default function App() {
             infoPlaceholder={'Otwierana na żądanie\nVHF: kanał 12\nTel: +48 ...'}
             saveLabel="Zapisz"
             headerColor="#0e7490"
+          />
+        )}
+        {activeTool === 'measure' && measureMode === 'marker' && !pendingMarkerPoint && (
+          <div className="place-fuel-banner" style={{ background: '#7c3aed' }}>
+            <span>Kliknij na mapie gdzie ma być punkt niezależny</span>
+          </div>
+        )}
+        {pendingMarkerPoint && (
+          <RouteMarkerForm
+            point={pendingMarkerPoint}
+            onSave={handleSaveMeasureMarker}
+            onCancel={handleCancelMeasureMarker}
           />
         )}
         {offlineSelecting && (

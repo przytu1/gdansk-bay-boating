@@ -128,6 +128,23 @@ html, body, #root {
   margin-top: 6px;
 }
 
+.route-marker-popup-delete {
+  margin-top: 8px;
+  border: 1px solid #fca5a5;
+  background: #fff;
+  color: #dc2626;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: system-ui, sans-serif;
+}
+
+.route-marker-popup-delete:hover {
+  background: #fef2f2;
+}
+
 /* Area popup — full-bleed coloured header */
 .area-popup-wrapper .mapboxgl-popup-content {
   overflow: hidden;
@@ -399,4 +416,31 @@ html, body, #root {
   inset: 0 auto 0 0;
   background: #ffffff;
   transition: width 0.15s ease;
+}
+
+/* Route marker icon picker */
+.marker-icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.marker-icon-btn {
+  width: 38px;
+  height: 38px;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #cbd5e0;
+  background: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.marker-icon-btn--active {
+  border-color: var(--marker-icon-color, #7c3aed);
+  background: color-mix(in srgb, var(--marker-icon-color, #7c3aed) 15%, white);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--marker-icon-color, #7c3aed) 35%, transparent);
 }

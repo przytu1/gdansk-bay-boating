@@ -3,6 +3,7 @@ import mapboxgl from 'mapbox-gl'
 import { translateType, translateColour, translateCardinal, translateLateral } from '../utils/translations'
 import { fmtTime } from '../utils/eta'
 import { downloadRegion } from '../utils/offlineMaps'
+import { ROUTE_MARKER_ICONS } from '../utils/routeMarkerIcons'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
@@ -144,6 +145,39 @@ function makeStopIcon() {
   ctx.beginPath()
   ctx.arc(cx + 12, 27, 3.5, 0, Math.PI * 2)
   ctx.fill()
+
+  return ctx.getImageData(0, 0, size, size)
+}
+
+// Independent route-marker icon: a colour-coded circle with the chosen
+// emoji drawn on top, so each icon in the built-in set stays visually
+// distinct without hand-drawing a separate pictogram per category.
+function makeRouteMarkerIcon(emoji, color) {
+  const size = 44
+  const c = document.createElement('canvas')
+  c.width = size
+  c.height = size
+  const ctx = c.getContext('2d')
+
+  ctx.shadowColor = 'rgba(0,0,0,0.32)'
+  ctx.shadowBlur = 4
+  ctx.shadowOffsetY = 2
+
+  ctx.beginPath()
+  ctx.arc(size / 2, size / 2, size / 2 - 3, 0, Math.PI * 2)
+  ctx.fillStyle = color
+  ctx.fill()
+  ctx.shadowBlur = 0
+  ctx.shadowOffsetY = 0
+
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 2.5
+  ctx.stroke()
+
+  ctx.font = '22px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(emoji, size / 2, size / 2 + 1)
 
   return ctx.getImageData(0, 0, size, size)
 }
@@ -326,6 +360,14 @@ function buildMeasurePointPopupHTML(props) {
   return `<div class="seamark-popup">
     <div class="seamark-popup-title">${icon} ${name}</div>
     ${lines.length ? `<div class="seamark-popup-details">${lines.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
+  </div>`
+}
+
+function buildRouteMarkerPopupHTML(props) {
+  const name = props.title ? escapeHTML(props.title) : 'Punkt niezależny'
+  return `<div class="seamark-popup">
+    <div class="seamark-popup-title">${escapeHTML(props.emoji || '')} ${name}</div>
+    <button type="button" class="route-marker-popup-delete" data-id="${escapeHTML(props.id)}">Usuń punkt</button>
   </div>`
 }
 
@@ -610,6 +652,7 @@ function buildAreaPopupHTML(props) {
 
 export default function MapView({
   isMeasuring, measurePoints, measureEtas, measureFuel, measureFuelLevels, onAddPoint,
+  measureMode, measureMarkers, onAddMeasureMarkerPoint, onDeleteMeasureMarker,
   seamarksVisible, seamarksData,
   fuelVisible, fuelData, isPlacingFuel, onPlaceFuelPoint,
   marinasVisible, marinasData, isPlacingMarina, onPlaceMarinaPoint,
@@ -625,6 +668,9 @@ export default function MapView({
   const measurePopupSeqRef = useRef(null)
   const isMeasuringRef = useRef(isMeasuring)
   const onAddPointRef = useRef(onAddPoint)
+  const measureModeRef = useRef(measureMode)
+  const onAddMeasureMarkerPointRef = useRef(onAddMeasureMarkerPoint)
+  const onDeleteMeasureMarkerRef = useRef(onDeleteMeasureMarker)
   const isPlacingFuelRef = useRef(isPlacingFuel)
   const onPlaceFuelPointRef = useRef(onPlaceFuelPoint)
   const isPlacingMarinaRef = useRef(isPlacingMarina)
@@ -642,6 +688,9 @@ export default function MapView({
 
   useEffect(() => { isMeasuringRef.current = isMeasuring }, [isMeasuring])
   useEffect(() => { onAddPointRef.current = onAddPoint }, [onAddPoint])
+  useEffect(() => { measureModeRef.current = measureMode }, [measureMode])
+  useEffect(() => { onAddMeasureMarkerPointRef.current = onAddMeasureMarkerPoint }, [onAddMeasureMarkerPoint])
+  useEffect(() => { onDeleteMeasureMarkerRef.current = onDeleteMeasureMarker }, [onDeleteMeasureMarker])
   useEffect(() => { isPlacingFuelRef.current = isPlacingFuel }, [isPlacingFuel])
   useEffect(() => { onPlaceFuelPointRef.current = onPlaceFuelPoint }, [onPlaceFuelPoint])
   useEffect(() => { isPlacingMarinaRef.current = isPlacingMarina }, [isPlacingMarina])
@@ -1034,6 +1083,45 @@ export default function MapView({
         map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
       })
 
+      // ── Independent route markers (not part of the route itself) ──
+      ROUTE_MARKER_ICONS.forEach(({ key, emoji, color }) => {
+        map.addImage(`route-marker-${key}`, makeRouteMarkerIcon(emoji, color))
+      })
+
+      map.addSource('measure-markers', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      map.addLayer({
+        id: 'measure-marker-points',
+        type: 'symbol',
+        source: 'measure-markers',
+        layout: {
+          'icon-image': ['concat', 'route-marker-', ['get', 'icon']],
+          'icon-size': 0.5,
+          'icon-allow-overlap': true,
+          'icon-anchor': 'center',
+        },
+      })
+
+      map.on('click', 'measure-marker-points', e => {
+        const feature = e.features[0]
+        measurePopupRef.current?.remove()
+        const popup = new mapboxgl.Popup({ maxWidth: '260px', closeButton: false, className: 'seamark-point-popup' })
+          .setLngLat(feature.geometry.coordinates.slice())
+          .setHTML(buildRouteMarkerPopupHTML(feature.properties))
+          .addTo(map)
+        popup.getElement().querySelector('.route-marker-popup-delete')?.addEventListener('click', () => {
+          onDeleteMeasureMarkerRef.current?.(feature.properties.id)
+          popup.remove()
+        })
+        measurePopupRef.current = popup
+      })
+      map.on('mouseenter', 'measure-marker-points', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', 'measure-marker-points', () => {
+        map.getCanvas().style.cursor = isMeasuringRef.current ? 'crosshair' : ''
+      })
+
       // ── Location history layers ──────────────────────────────────
       map.addSource('location-history-line', {
         type: 'geojson',
@@ -1098,8 +1186,12 @@ export default function MapView({
         return
       }
       if (!isMeasuringRef.current) return
-      const hit = map.queryRenderedFeatures(e.point, { layers: ['seamarks-points', 'measure-points', 'measure-stops'] })
+      const hit = map.queryRenderedFeatures(e.point, { layers: ['seamarks-points', 'measure-points', 'measure-stops', 'measure-marker-points'] })
       if (hit.length > 0) return
+      if (measureModeRef.current === 'marker') {
+        onAddMeasureMarkerPointRef.current?.({ lng: e.lngLat.lng, lat: e.lngLat.lat })
+        return
+      }
       onAddPointRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat })
     })
 
@@ -1196,6 +1288,23 @@ export default function MapView({
       measurePopupSeqRef.current = null
     }
   }, [measurePoints, measureEtas, measureFuel, measureFuelLevels])
+
+  // Independent route markers data
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    map.getSource('measure-markers')?.setData({
+      type: 'FeatureCollection',
+      features: (measureMarkers || []).map(m => {
+        const iconInfo = ROUTE_MARKER_ICONS.find(i => i.key === m.icon) || ROUTE_MARKER_ICONS[0]
+        return {
+          type: 'Feature',
+          properties: { id: m.id, icon: iconInfo.key, emoji: iconInfo.emoji, title: m.title },
+          geometry: { type: 'Point', coordinates: [m.lng, m.lat] },
+        }
+      }),
+    })
+  }, [measureMarkers])
 
   // Seamarks data + visibility
   useEffect(() => {

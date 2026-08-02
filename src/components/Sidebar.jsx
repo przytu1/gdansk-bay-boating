@@ -58,6 +58,9 @@ export default function Sidebar({
   measureSpeeds,
   measureDepartureTime,
   measureFuel,
+  measureMode,
+  onMeasureModeChange,
+  measureMarkers,
   onSaveMeasurement,
   onOpenRouteConfig,
   onUndoLastPoint,
@@ -114,6 +117,7 @@ export default function Sidebar({
       speeds: measureSpeeds,
       departureTime: measureDepartureTime,
       fuel: measureFuel,
+      markers: measureMarkers,
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -359,6 +363,29 @@ export default function Sidebar({
         {activeTool === 'measure' && (
           <div className="sidebar-panel">
             <div className="sidebar-panel-title">Edytowana trasa</div>
+
+            <div className="measure-mode-toggle">
+              <button
+                type="button"
+                className={`measure-mode-btn${measureMode !== 'marker' ? ' measure-mode-btn--active' : ''}`}
+                onClick={() => onMeasureModeChange('route')}
+              >
+                Punkt trasy
+              </button>
+              <button
+                type="button"
+                className={`measure-mode-btn${measureMode === 'marker' ? ' measure-mode-btn--active' : ''}`}
+                onClick={() => onMeasureModeChange('marker')}
+              >
+                Punkt niezależny
+              </button>
+            </div>
+            {measureMarkers.length > 0 && (
+              <p className="sidebar-panel-empty" style={{ marginBottom: 8 }}>
+                Punkty niezależne: <strong>{measureMarkers.length}</strong>
+              </p>
+            )}
+
             {measurePoints.length === 0 ? (
               <p className="sidebar-panel-empty">Kliknij mapę, aby dodać punkty trasy</p>
             ) : (

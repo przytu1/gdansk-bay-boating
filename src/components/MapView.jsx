@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { translateType, translateColour, translateCardinal, translateLateral } from '../utils/translations'
 import { fmtTime } from '../utils/eta'
+import { downloadRegion } from '../utils/offlineMaps'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
@@ -615,6 +616,8 @@ export default function MapView({
   locksVisible, locksData, isPlacingLock, onPlaceLockPoint,
   isCoords, coordPoint, onCoordPoint,
   locationHistoryVisible, locationHistoryPoints,
+  offlineSelecting, offlineFirstCorner, offlineAreaBounds, onOfflineAreaClick,
+  offlineDownloadRequest, offlineDownloadCancel, onOfflineDownloadProgress, onOfflineDownloadComplete,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
@@ -630,6 +633,12 @@ export default function MapView({
   const onPlaceLockPointRef = useRef(onPlaceLockPoint)
   const isCoordsRef = useRef(isCoords)
   const onCoordPointRef = useRef(onCoordPoint)
+  const offlineSelectingRef = useRef(offlineSelecting)
+  const onOfflineAreaClickRef = useRef(onOfflineAreaClick)
+  const offlineDownloadCancelRef = useRef(offlineDownloadCancel)
+  const onOfflineDownloadProgressRef = useRef(onOfflineDownloadProgress)
+  const onOfflineDownloadCompleteRef = useRef(onOfflineDownloadComplete)
+  const offlineDownloadingRef = useRef(false)
 
   useEffect(() => { isMeasuringRef.current = isMeasuring }, [isMeasuring])
   useEffect(() => { onAddPointRef.current = onAddPoint }, [onAddPoint])
@@ -641,6 +650,11 @@ export default function MapView({
   useEffect(() => { onPlaceLockPointRef.current = onPlaceLockPoint }, [onPlaceLockPoint])
   useEffect(() => { isCoordsRef.current = isCoords }, [isCoords])
   useEffect(() => { onCoordPointRef.current = onCoordPoint }, [onCoordPoint])
+  useEffect(() => { offlineSelectingRef.current = offlineSelecting }, [offlineSelecting])
+  useEffect(() => { onOfflineAreaClickRef.current = onOfflineAreaClick }, [onOfflineAreaClick])
+  useEffect(() => { offlineDownloadCancelRef.current = offlineDownloadCancel }, [offlineDownloadCancel])
+  useEffect(() => { onOfflineDownloadProgressRef.current = onOfflineDownloadProgress }, [onOfflineDownloadProgress])
+  useEffect(() => { onOfflineDownloadCompleteRef.current = onOfflineDownloadComplete }, [onOfflineDownloadComplete])
 
   useEffect(() => {
     if (mapRef.current) return
@@ -916,6 +930,38 @@ export default function MapView({
         },
       })
 
+      // ── Offline area selection preview ───────────────────────────
+      map.addSource('offline-area', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      map.addLayer({
+        id: 'offline-area-fill',
+        type: 'fill',
+        source: 'offline-area',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'fill-color': '#0e7490', 'fill-opacity': 0.15 },
+      })
+      map.addLayer({
+        id: 'offline-area-line',
+        type: 'line',
+        source: 'offline-area',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'line-color': '#0e7490', 'line-width': 2, 'line-dasharray': [2, 2] },
+      })
+      map.addLayer({
+        id: 'offline-area-corner',
+        type: 'circle',
+        source: 'offline-area',
+        filter: ['==', ['geometry-type'], 'Point'],
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#0e7490',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+        },
+      })
+
       // ── Measure layers ───────────────────────────────────────────
       map.addSource('measure-line', {
         type: 'geojson',
@@ -1031,6 +1077,10 @@ export default function MapView({
         popupOpenBeforeClick = false
         return
       }
+      if (offlineSelectingRef.current) {
+        onOfflineAreaClickRef.current([e.lngLat.lng, e.lngLat.lat])
+        return
+      }
       if (isPlacingFuelRef.current) {
         onPlaceFuelPointRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat })
         return
@@ -1059,9 +1109,48 @@ export default function MapView({
 
   // Crosshair cursor when measuring, placing a point, or picking coords
   useEffect(() => {
-    const active = isMeasuring || isPlacingFuel || isPlacingMarina || isPlacingLock || isCoords
+    const active = isMeasuring || isPlacingFuel || isPlacingMarina || isPlacingLock || isCoords || offlineSelecting
     mapRef.current?.getCanvas().style.setProperty('cursor', active ? 'crosshair' : '')
-  }, [isMeasuring, isPlacingFuel, isPlacingMarina, isPlacingLock, isCoords])
+  }, [isMeasuring, isPlacingFuel, isPlacingMarina, isPlacingLock, isCoords, offlineSelecting])
+
+  // Offline area selection preview: first-corner marker, or the finished rectangle
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const features = []
+    if (offlineFirstCorner && !offlineAreaBounds) {
+      features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: offlineFirstCorner } })
+    }
+    if (offlineAreaBounds) {
+      const [[west, south], [east, north]] = offlineAreaBounds
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+        },
+      })
+    }
+    map.getSource('offline-area')?.setData({ type: 'FeatureCollection', features })
+  }, [offlineFirstCorner, offlineAreaBounds])
+
+  // Kick off the camera-sweep download when App hands us a new request object
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !offlineDownloadRequest || offlineDownloadingRef.current) return
+    offlineDownloadingRef.current = true
+    const { bounds, minZoom, maxZoom } = offlineDownloadRequest
+    downloadRegion(map, {
+      bounds,
+      minZoom,
+      maxZoom,
+      onProgress: (current, total) => onOfflineDownloadProgressRef.current?.(current, total),
+      isCancelled: () => offlineDownloadCancelRef.current,
+    }).then(() => {
+      offlineDownloadingRef.current = false
+      onOfflineDownloadCompleteRef.current?.({ cancelled: offlineDownloadCancelRef.current })
+    })
+  }, [offlineDownloadRequest])
 
   // Update measure layer data
   useEffect(() => {

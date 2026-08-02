@@ -66,6 +66,10 @@ export default function Sidebar({
   historyPointCount,
   onHistoryRangeChange,
   onSetHistoryQuickRange,
+  offlineRegions,
+  onStartSelectOfflineArea,
+  onDeleteOfflineRegion,
+  onClearAllOfflineMaps,
 }) {
   const [routeSaving, setRouteSaving] = useState(false)
   const [routeName, setRouteName] = useState('')
@@ -314,6 +318,41 @@ export default function Sidebar({
             <button className="settings-update-btn settings-update-btn--teal" onClick={onStartPlaceLock}>
               Dodaj śluzę / most zwodzony
             </button>
+
+            <div className="sidebar-panel-divider" />
+            <div className="sidebar-panel-title">Mapy offline</div>
+            <p className="sidebar-panel-empty" style={{ marginBottom: 4 }}>
+              Zapisane obszary: <strong>{offlineRegions.length}</strong>
+            </p>
+            {offlineRegions.length > 0 && (
+              <ul className="sidebar-saved-list">
+                {offlineRegions.map(r => (
+                  <li key={r.id} className="sidebar-saved-item">
+                    <span className="sidebar-saved-name sidebar-saved-name--fuel">
+                      {r.name}
+                      <span className="offline-region-meta">
+                        {' '}· zoom {r.minZoom}–{r.maxZoom} · ~{r.estimatedTiles.toLocaleString('pl-PL')} kafelków · {formatCacheDate(r.createdAt)}
+                      </span>
+                    </span>
+                    <button
+                      className="sidebar-saved-delete"
+                      onClick={() => onDeleteOfflineRegion(r.id)}
+                      aria-label={`Usuń ${r.name}`}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button className="settings-update-btn settings-update-btn--teal" onClick={onStartSelectOfflineArea}>
+              Pobierz zaznaczony obszar mapy offline
+            </button>
+            {offlineRegions.length > 0 && (
+              <button className="route-edit-undo-btn" onClick={onClearAllOfflineMaps} style={{ marginTop: 8 }}>
+                Wyczyść wszystkie mapy offline
+              </button>
+            )}
           </div>
         )}
 

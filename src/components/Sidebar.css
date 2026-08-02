@@ -367,6 +367,12 @@
   color: var(--text);
 }
 
+.offline-region-meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+}
+
 .settings-update-btn--navy {
   background: #1e40af;
 }

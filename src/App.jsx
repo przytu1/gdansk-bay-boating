@@ -4,6 +4,7 @@ import MapView from './components/MapView'
 import DistanceBar from './components/DistanceBar'
 import CoordBar from './components/CoordBar'
 import FuelStationForm from './components/FuelStationForm'
+import OfflineAreaForm from './components/OfflineAreaForm'
 import { fetchSeamarks, getSeamarksCacheInfo, clearSeamarksCache } from './utils/seamarks'
 import { BUILT_IN_FUEL_STATIONS, loadCustomFuelStations, saveCustomFuelStations, stationsToGeoJSON } from './utils/customFuel'
 import { BUILT_IN_MARINAS, loadUserMarinas, saveUserMarinas, marinasToGeoJSON } from './utils/customMarinas'
@@ -11,6 +12,7 @@ import { BUILT_IN_LOCKS, loadUserLocks, saveUserLocks, locksToGeoJSON } from './
 import { loadLocationHistory, saveLocationHistory, addPosition, filterByRange } from './utils/locationHistory'
 import { computeETAs, DEFAULT_SPEED_KN } from './utils/eta'
 import { computeFuelLevels } from './utils/fuel'
+import { loadOfflineRegions, addOfflineRegion, removeOfflineRegion, clearAllOfflineMaps, estimateTileCount } from './utils/offlineMaps'
 
 const STORAGE_KEY = 'bay-nav-measurements'
 const MIN_GPS_SAVE_INTERVAL_MS = 10000
@@ -68,6 +70,15 @@ export default function App() {
   const [seamarksLoading, setSeamarksLoading] = useState(false)
   const [seamarksError, setSeamarksError] = useState(null)
   const [seamarksInfo, setSeamarksInfo] = useState(getSeamarksCacheInfo)
+
+  // Offline map areas
+  const [offlineSelecting, setOfflineSelecting] = useState(false)
+  const [offlineFirstCorner, setOfflineFirstCorner] = useState(null)
+  const [offlineAreaBounds, setOfflineAreaBounds] = useState(null)
+  const [offlineRegions, setOfflineRegions] = useState(loadOfflineRegions)
+  const [offlineDownloadRequest, setOfflineDownloadRequest] = useState(null)
+  const [offlineDownload, setOfflineDownload] = useState(null)
+  const [offlineDownloadCancel, setOfflineDownloadCancel] = useState(false)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedMeasurements))
@@ -259,6 +270,73 @@ export default function App() {
     setUserLocks(prev => prev.filter(l => l.id !== id))
   }
 
+  function handleStartSelectOfflineArea() {
+    setMenuOpen(false)
+    setOfflineSelecting(true)
+    setOfflineFirstCorner(null)
+    setOfflineAreaBounds(null)
+  }
+
+  function handleOfflineAreaClick(point) {
+    if (!offlineFirstCorner) {
+      setOfflineFirstCorner(point)
+      return
+    }
+    const sw = [Math.min(offlineFirstCorner[0], point[0]), Math.min(offlineFirstCorner[1], point[1])]
+    const ne = [Math.max(offlineFirstCorner[0], point[0]), Math.max(offlineFirstCorner[1], point[1])]
+    setOfflineAreaBounds([sw, ne])
+    setOfflineSelecting(false)
+    setOfflineFirstCorner(null)
+  }
+
+  function handleCancelOfflineSelect() {
+    setOfflineSelecting(false)
+    setOfflineFirstCorner(null)
+    setOfflineAreaBounds(null)
+  }
+
+  function handleConfirmOfflineDownload({ name, minZoom, maxZoom }) {
+    setOfflineDownload({ name, current: 0, total: 0 })
+    setOfflineDownloadCancel(false)
+    setOfflineDownloadRequest({ bounds: offlineAreaBounds, minZoom, maxZoom, name })
+  }
+
+  function handleOfflineDownloadProgress(current, total) {
+    setOfflineDownload(prev => (prev ? { ...prev, current, total } : prev))
+  }
+
+  function handleOfflineDownloadComplete({ cancelled }) {
+    if (!cancelled && offlineDownloadRequest) {
+      const { bounds, minZoom, maxZoom, name } = offlineDownloadRequest
+      const region = {
+        id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
+        name,
+        bounds,
+        minZoom,
+        maxZoom,
+        estimatedTiles: estimateTileCount(bounds, minZoom, maxZoom),
+        createdAt: Date.now(),
+      }
+      setOfflineRegions(addOfflineRegion(region))
+    }
+    setOfflineDownloadRequest(null)
+    setOfflineDownload(null)
+    setOfflineAreaBounds(null)
+    setOfflineDownloadCancel(false)
+  }
+
+  function handleCancelOfflineDownload() {
+    setOfflineDownloadCancel(true)
+  }
+
+  function handleDeleteOfflineRegion(id) {
+    setOfflineRegions(removeOfflineRegion(id))
+  }
+
+  function handleClearAllOfflineMaps() {
+    clearAllOfflineMaps().then(() => setOfflineRegions([]))
+  }
+
   function handleHistoryRangeChange(startTs, endTs) {
     setHistoryRange(prev => ({
       startTs: startTs ?? prev.startTs,
@@ -440,6 +518,10 @@ export default function App() {
         historyPointCount={historyPoints.length}
         onHistoryRangeChange={handleHistoryRangeChange}
         onSetHistoryQuickRange={handleSetHistoryQuickRange}
+        offlineRegions={offlineRegions}
+        onStartSelectOfflineArea={handleStartSelectOfflineArea}
+        onDeleteOfflineRegion={handleDeleteOfflineRegion}
+        onClearAllOfflineMaps={handleClearAllOfflineMaps}
       />
       <main className="map-pane">
         <MapView
@@ -468,6 +550,14 @@ export default function App() {
           onCoordPoint={setCoordPoint}
           locationHistoryVisible={visibleLayers.locationHistory}
           locationHistoryPoints={historyPoints}
+          offlineSelecting={offlineSelecting}
+          offlineFirstCorner={offlineFirstCorner}
+          offlineAreaBounds={offlineAreaBounds}
+          onOfflineAreaClick={handleOfflineAreaClick}
+          offlineDownloadRequest={offlineDownloadRequest}
+          offlineDownloadCancel={offlineDownloadCancel}
+          onOfflineDownloadProgress={handleOfflineDownloadProgress}
+          onOfflineDownloadComplete={handleOfflineDownloadComplete}
         />
         {isPlacingFuel && !pendingFuelPoint && (
           <div className="place-fuel-banner">
@@ -522,6 +612,36 @@ export default function App() {
             saveLabel="Zapisz"
             headerColor="#0e7490"
           />
+        )}
+        {offlineSelecting && (
+          <div className="place-fuel-banner" style={{ background: '#0e7490' }}>
+            <span>{offlineFirstCorner ? 'Kliknij drugi róg obszaru' : 'Kliknij pierwszy róg obszaru do pobrania'}</span>
+            <button onClick={handleCancelOfflineSelect}>Anuluj</button>
+          </div>
+        )}
+        {offlineAreaBounds && !offlineDownload && (
+          <OfflineAreaForm
+            bounds={offlineAreaBounds}
+            onConfirm={handleConfirmOfflineDownload}
+            onCancel={handleCancelOfflineSelect}
+          />
+        )}
+        {offlineDownload && (
+          <div className="place-fuel-banner offline-progress-banner" style={{ background: '#0e7490' }}>
+            <span>
+              Pobieranie „{offlineDownload.name}"…
+              {offlineDownload.total > 0 && ` ${offlineDownload.current}/${offlineDownload.total} (${Math.round(offlineDownload.current / offlineDownload.total * 100)}%)`}
+              {offlineDownload.total > 0 && (
+                <span className="offline-progress-bar">
+                  <span
+                    className="offline-progress-bar-fill"
+                    style={{ width: `${Math.round(offlineDownload.current / offlineDownload.total * 100)}%` }}
+                  />
+                </span>
+              )}
+            </span>
+            <button onClick={handleCancelOfflineDownload}>Anuluj</button>
+          </div>
         )}
         {activeTool === 'coords' && (
           <CoordBar point={coordPoint} />

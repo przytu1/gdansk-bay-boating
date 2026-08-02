@@ -1,7 +1,7 @@
 import { segmentKm } from './distance'
 
 function applyOverride(pt, level) {
-  if (pt?.type === 'stop' && pt.fuelOverride !== '' && pt.fuelOverride != null) {
+  if (pt?.fuelOverride !== '' && pt?.fuelOverride != null) {
     const ov = parseFloat(pt.fuelOverride)
     if (!isNaN(ov)) return ov
   }
@@ -9,7 +9,7 @@ function applyOverride(pt, level) {
 }
 
 // Returns an array parallel to `points`: the fuel level (in litres) at each
-// point, after any manual refuel override recorded at a "Postój" point.
+// point, after any manually recorded actual reading at that point.
 export function computeFuelLevels(points, fuelStart, consumptionPer100km) {
   if (points.length < 1) return []
   const startLevel = parseFloat(fuelStart)

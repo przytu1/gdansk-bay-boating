@@ -203,6 +203,44 @@
   font-weight: 500;
 }
 
+/* ── Editable "actual reading" values (Godzina przybycia / Stan baku) ── */
+.eta-value-editable {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.eta-value--actual {
+  color: #15803d;
+}
+
+.eta-value--actual::after {
+  content: '✓';
+  margin-left: 5px;
+  font-size: 11px;
+}
+
+.eta-edit-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #a0aec0;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.eta-edit-btn:hover {
+  background: #edf2f7;
+  color: #0077cc;
+}
+
 /* ── Shared "label above value" field wrapper ── */
 .eta-seg-field {
   display: flex;
@@ -357,7 +395,37 @@
 .fuel-config-fields {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: 12px 20px;
+}
+
+/* ── Default speed card (reuses .fuel-config-card layout) ── */
+.speed-config-card {
+  background: #f0f7ff;
+  border: 1px solid #cfe2f7;
+  border-left: 4px solid #0077cc;
+}
+
+.speed-apply-btn {
+  border: 1.5px solid #0077cc;
+  background: #ffffff;
+  color: #0077cc;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+}
+
+.speed-apply-btn:hover:not(:disabled) {
+  background: #0077cc;
+  color: #ffffff;
+}
+
+.speed-apply-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .eta-fuel-input-group {

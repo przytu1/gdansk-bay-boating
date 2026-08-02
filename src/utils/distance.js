@@ -1,5 +1,5 @@
 const R_KM = 6371
-const KM_PER_NM = 1.852
+export const KM_PER_NM = 1.852
 
 function haversineKm(p1, p2) {
   const rad = d => (d * Math.PI) / 180
